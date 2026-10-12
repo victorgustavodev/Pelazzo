@@ -1,5 +1,19 @@
 name: pelazzo
 
+x-app: &app
+  image: pelazzo-dev:local
+  init: true
+
+x-backend-environment: &backend-environment
+  NODE_ENV: development
+  PORT: '3000'
+  FRONTEND_ORIGIN: http://localhost:5173
+  # Credenciais fictícias do ambiente local. O hostname é o serviço Compose.
+  DATABASE_URL: postgresql://pelazzo:local_dev_only@postgres:5432/pelazzo?schema=public
+  AUTH_SECRET: ${AUTH_SECRET:?Execute node scripts/setup-dev-env.mjs}
+  AUTH_BASE_URL: http://localhost:3000
+  SWAGGER_ENABLED: 'true'
+
 services:
   postgres:
     image: postgres:18.6-alpine
@@ -16,6 +30,88 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 10s
+
+  migrate:
+    <<: *app
+    command: ['npm', 'run', 'db:deploy']
+    environment: *backend-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  backend:
+    <<: *app
+    build:
+      context: .
+      target: development
+    command: ['npm', 'run', 'start:dev', '--workspace', '@pelazzo/backend']
+    environment: *backend-environment
+    ports:
+      - '127.0.0.1:3000:3000'
+    volumes:
+      - ./backend/src:/app/backend/src
+      - ./backend/prisma:/app/backend/prisma:ro
+      - ./backend/tsconfig.json:/app/backend/tsconfig.json:ro
+      - ./backend/tsconfig.build.json:/app/backend/tsconfig.build.json:ro
+      - ./backend/nest-cli.json:/app/backend/nest-cli.json:ro
+      - backend_generated:/app/backend/src/generated
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health/ready', {signal: AbortSignal.timeout(4000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  frontend:
+    <<: *app
+    command:
+      [
+        'npm',
+        'exec',
+        '--workspace',
+        '@pelazzo/frontend',
+        '--',
+        'vite',
+        '--host',
+        '0.0.0.0',
+      ]
+    environment:
+      API_PROXY_TARGET: http://backend:3000
+      VITE_API_BASE_URL: /api
+      DEV_POLLING: 'true'
+    ports:
+      - '127.0.0.1:5173:5173'
+    volumes:
+      - ./frontend/src:/app/frontend/src:ro
+      - ./frontend/index.html:/app/frontend/index.html:ro
+      - ./frontend/vite.config.ts:/app/frontend/vite.config.ts:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:5173', {signal: AbortSignal.timeout(4000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
 
 volumes:
   postgres_data:
+  backend_generated:

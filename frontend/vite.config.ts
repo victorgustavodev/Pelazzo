@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       strictPort: true,
+      watch: { usePolling: env.DEV_POLLING === 'true' },
       proxy: {
         '/api': { target: env.API_PROXY_TARGET || 'http://127.0.0.1:3000' },
       },

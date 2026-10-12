@@ -13,6 +13,11 @@
     "sourceMap": true,
     "forceConsistentCasingInFileNames": true
   },
+  "watchOptions": {
+    "watchFile": "fixedPollingInterval",
+    "watchDirectory": "fixedPollingInterval",
+    "fallbackPolling": "dynamicPriority"
+  },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "test", "test-dist"]
 }

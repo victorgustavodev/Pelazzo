@@ -2,6 +2,10 @@
 
 ## Administração
 
+- Cadastro por e-mail/senha cria sessão; logout revoga imediatamente e troca de senha revoga outras sessões.
+- Criar pelada cria seu primeiro administrador atomicamente.
+- Convite só é aceito pela conta do e-mail convidado, antes da expiração, sem revogação e uma única vez. O token só aparece na criação.
+
 - Com dois administradores, ambos conseguem gerenciar partidas, valores e tema da mesma pelada.
 - Um usuário comum tentando alterar pagamento ou configuração diretamente pelo endpoint recebe negação e não altera dados.
 - Remover ou rebaixar o último administrador é bloqueado, inclusive em requisições concorrentes.
@@ -35,3 +39,12 @@
 - Abrir o contato não cria nem confirma um pagamento.
 - Trocar nome e cor atualiza a interface da pelada e preserva legibilidade.
 - Configuração de uma pelada não altera tema ou Pix de outra.
+
+## Interface e contrato
+
+- As telas consomem exclusivamente a API REST e possuem estados de carregamento, vazio e erro.
+- Admin gerencia participantes, agenda/presenças, caixa e membros; USER consulta próprios dados financeiros, caixa agregado, Pix e sorteia.
+- Reenvio de formulário financeiro após falha de conexão preserva a chave de idempotência.
+- R$ 27,50 é enviado como 2750 centavos; formatos ambíguos e frações de centavo são rejeitados.
+- Formulários possuem labels associados e descrições, dialogs com foco/teclado, navegação móvel e tema com contraste de texto.
+- Swagger documenta rotas, DTOs e Bearer, incluindo os nomes `ttlDays` e `hasGoalkeepers`.

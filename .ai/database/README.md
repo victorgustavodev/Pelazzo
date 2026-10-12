@@ -8,21 +8,24 @@ Um banco e um schema `public` são suficientes. Separar responsabilidade por mó
 
 ## Propriedade dos dados
 
-| Módulo                      | Tabelas                           | Responsabilidade                                       |
-| --------------------------- | --------------------------------- | ------------------------------------------------------ |
-| auth                        | users                             | Identidade; credenciais e sessões dependem do provedor |
-| groups                      | groups, memberships, pix_settings | Peladas, administradores, tema e destinatário Pix      |
-| participants                | participants                      | Cadastro e modalidade atual                            |
-| matches                     | matches, match_participants       | Agenda, presença e modalidade histórica                |
-| finance                     | payments, expenses                | Recebimentos, despesas e anulações                     |
-| infraestrutura de auditoria | audit_events                      | Rastreabilidade das mutações                           |
-| team-draw                   | nenhuma no MVP                    | Sorteio em memória sem modificar o financeiro          |
+| Módulo                      | Tabelas                                                 | Responsabilidade                                            |
+| --------------------------- | ------------------------------------------------------- | ----------------------------------------------------------- |
+| auth                        | users, auth_accounts, auth_sessions, auth_verifications | E-mail/senha e sessões geridas pelo Better Auth             |
+| groups                      | groups, memberships, pix_settings, group_invitations    | Peladas, administradores, convites, tema e destinatário Pix |
+| participants                | participants                                            | Cadastro e modalidade atual                                 |
+| matches                     | matches, match_participants                             | Agenda, presença e modalidade histórica                     |
+| finance                     | payments, expenses                                      | Recebimentos, despesas e anulações                          |
+| infraestrutura de auditoria | audit_events                                            | Rastreabilidade das mutações                                |
+| team-draw                   | nenhuma no MVP                                          | Sorteio em memória sem modificar o financeiro               |
 
 ## Relações
 
 ```mermaid
 erDiagram
+    USERS ||--o{ AUTH_ACCOUNTS : autentica
+    USERS ||--o{ AUTH_SESSIONS : acessa
     USERS ||--o{ MEMBERSHIPS : participa
+    GROUPS ||--o{ GROUP_INVITATIONS : convida
     GROUPS ||--|{ MEMBERSHIPS : possui
     GROUPS ||--o{ PARTICIPANTS : cadastra
     USERS o|--o{ PARTICIPANTS : identifica
@@ -130,13 +133,17 @@ Não indexar JSON de auditoria ou todas as colunas preventivamente. Reavaliar co
 
 ## Prisma e migrations
 
+No ambiente Docker, o serviço `migrate` aplica as migrations versionadas automaticamente após PostgreSQL ficar saudável; o backend só inicia após sucesso. As dez tabelas e todas as colunas são criadas pela migration inicial existente, sem `db push` ou um script paralelo de criação. O volume `postgres_data` mantém o histórico e os dados entre reinicializações.
+
 - Modelos e migrations ficam em `backend/prisma`; não em Domain. O SQL desta pasta é referência arquitetural, não uma segunda sequência de migrations.
 - O modelo Prisma e a migration inicial foram criados. Checks e índices parciais são mantidos no SQL da migration; migrations versionadas são a fonte do esquema aplicado. Não aplicar o blueprint separado sobre um banco já migrado.
 - Não usar `db push` como substituto do histórico de migrations. Não gerar migrations destrutivas para contornar divergências.
 - Manter constraints e índices personalizados nas próximas migrations. Mapear tabelas/colunas e erros técnicos dentro da Infrastructure.
 - A função de consulta de caixa retorna uma projeção financeira por contrato; não expor tipos Prisma ou um repositório genérico às camadas internas.
 - Configurar `DATABASE_URL` somente em ambiente e `.env.example` sem credenciais reais. Usar conexão exclusiva do servidor.
-- Autenticação ainda não definida: a tabela users representa a identidade local; adicionar sessões/contas do provedor em migration própria quando ele for escolhido.
+- Autenticação definida: migration `20261011000200_auth_invitations_corrections` acrescenta e-mail único normalizado, campos de identidade, tabelas Better Auth e convites por hash. Convites referenciam membros da mesma pelada, possuem e-mail, papel, expiração, aceitação e revogação. Não persistir o token de convite em texto puro.
+- Payments/expenses recebem `replaces_id` único, com FK composta para a mesma pelada e check contra auto-referência. A correção exige original confirmado e anula/cria/audita na mesma transação. Esta migration é aditiva e mantém todos os checks e índices parciais originais.
+- `schema.sql` permanece o blueprint da migration inicial. Para todas as tabelas atuais, use `schema.prisma` e as duas migrations versionadas; não aplicar o blueprint sobre o banco migrado.
 
 PostgreSQL documenta constraints compostas e índices únicos parciais em [Constraints](https://www.postgresql.org/docs/current/ddl-constraints.html). A necessidade de preservar recursos não representados no schema Prisma está descrita em [Database features](https://docs.prisma.io/docs/orm/v7/reference/database-features).
 
@@ -145,3 +152,7 @@ PostgreSQL documenta constraints compostas e índices únicos parciais em [Const
 Em PostgreSQL descartável, validar: schema completo; valores negativos/zero; mês inválido; vínculo entre peladas; participante errado no recebimento; duplicação de presença, conta ativa e idempotência; anulação incompleta; receitas com múltiplas despesas sem multiplicação; preservação de histórico. Nos testes de casos de uso, validar permissões, último administrador concorrente, correção imutável e isolamento das consultas.
 
 O chore adicionou testes automatizados da migration em PostgreSQL embarcado descartável (PGlite) e um workflow que aplica migrations no PostgreSQL 18 e verifica a conexão real do backend. A execução local em Docker depende da disponibilidade do Engine; não confundir os testes embarcados com validação do container PostgreSQL 18.
+
+Em 11/10/2026, a migration inicial foi aplicada ao PostgreSQL 18.6 local em Docker. A inspeção confirmou dez tabelas de domínio com 91 colunas, além da tabela de controle `_prisma_migrations`. O readiness do backend e o acesso pelo proxy do frontend retornaram `status: ok`. Lint, tipos, 13 testes e builds também passaram em um container Linux temporário.
+
+Em 12/10/2026, as duas migrations foram aplicadas no banco principal preservando os dados. A inspeção confirmou 14 tabelas da aplicação, além de `_prisma_migrations`. Os testes HTTP completos usam PostgreSQL 18.6 em bancos temporários separados.

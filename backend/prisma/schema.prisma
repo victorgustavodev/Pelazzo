@@ -57,14 +57,19 @@ enum PixKeyType {
 }
 
 model User {
-  id           String        @id @default(uuid()) @db.Uuid
-  displayName  String        @map("display_name") @db.VarChar(120)
-  authProvider String        @map("auth_provider") @db.VarChar(100)
-  authSubject  String        @map("auth_subject") @db.VarChar(255)
-  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  memberships  Membership[]
-  participants Participant[]
+  id            String        @id @default(uuid()) @db.Uuid
+  displayName   String        @map("display_name") @db.VarChar(120)
+  authProvider  String        @default("local") @map("auth_provider") @db.VarChar(100)
+  authSubject   String        @default(uuid()) @map("auth_subject") @db.VarChar(255)
+  email         String?       @unique @db.VarChar(254)
+  emailVerified Boolean       @default(false) @map("email_verified")
+  image         String?
+  sessions      Session[]
+  accounts      Account[]
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  memberships   Membership[]
+  participants  Participant[]
 
   @@unique([authProvider, authSubject], map: "users_auth_provider_auth_subject_key")
   @@map("users")
@@ -85,27 +90,30 @@ model Group {
   expenses       Expense[]
   pixSettings    PixSettings?
   auditEvents    AuditEvent[]
+  invitations    GroupInvitation[]
 
   @@map("groups")
 }
 
 model Membership {
-  id               String         @id @default(uuid()) @db.Uuid
-  groupId          String         @map("group_id") @db.Uuid
-  userId           String         @map("user_id") @db.Uuid
-  role             MembershipRole @default(USER)
-  active           Boolean        @default(true)
-  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  group            Group          @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  user             User           @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  participants     Participant[]
-  recordedPayments Payment[]      @relation("PaymentRecorder")
-  voidedPayments   Payment[]      @relation("PaymentVoider")
-  recordedExpenses Expense[]      @relation("ExpenseRecorder")
-  voidedExpenses   Expense[]      @relation("ExpenseVoider")
-  pixSettings      PixSettings[]
-  auditEvents      AuditEvent[]
+  id                  String            @id @default(uuid()) @db.Uuid
+  groupId             String            @map("group_id") @db.Uuid
+  userId              String            @map("user_id") @db.Uuid
+  role                MembershipRole    @default(USER)
+  active              Boolean           @default(true)
+  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  group               Group             @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  user                User              @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  participants        Participant[]
+  recordedPayments    Payment[]         @relation("PaymentRecorder")
+  voidedPayments      Payment[]         @relation("PaymentVoider")
+  recordedExpenses    Expense[]         @relation("ExpenseRecorder")
+  voidedExpenses      Expense[]         @relation("ExpenseVoider")
+  pixSettings         PixSettings[]
+  auditEvents         AuditEvent[]
+  invitationsCreated  GroupInvitation[] @relation("InvitationCreator")
+  invitationsAccepted GroupInvitation[] @relation("InvitationAcceptor")
 
   @@unique([groupId, userId], map: "memberships_group_id_user_id_key")
   @@index([userId, active], map: "memberships_user_active_idx")
@@ -186,6 +194,9 @@ model Payment {
   voidedBy           String?           @map("voided_by") @db.Uuid
   voidedAt           DateTime?         @map("voided_at") @db.Timestamptz(6)
   idempotencyKey     String            @map("idempotency_key") @db.VarChar(128)
+  replacesId         String?           @unique(map: "payments_replaces_id_key") @map("replaces_id") @db.Uuid
+  replaces           Payment?          @relation("PaymentCorrection", map: "payments_replaces_fk", fields: [groupId, replacesId], references: [groupId, id], onDelete: Restrict, onUpdate: NoAction)
+  replacements       Payment[]         @relation("PaymentCorrection")
   createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   group              Group             @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
@@ -195,6 +206,7 @@ model Payment {
   voider             Membership?       @relation("PaymentVoider", fields: [groupId, voidedBy], references: [groupId, userId], onDelete: Restrict, onUpdate: NoAction)
 
   @@unique([groupId, idempotencyKey], map: "payments_group_id_idempotency_key_key")
+  @@unique([groupId, id], map: "payments_group_id_id_key")
   @@index([groupId, matchParticipantId, status], map: "payments_participation_status_idx")
   @@index([groupId, participantId, receivedAt], map: "payments_participant_received_idx")
   // Índice parcial de competência e checks são mantidos na migration SQL.
@@ -215,6 +227,9 @@ model Expense {
   voidedBy       String?         @map("voided_by") @db.Uuid
   voidedAt       DateTime?       @map("voided_at") @db.Timestamptz(6)
   idempotencyKey String          @map("idempotency_key") @db.VarChar(128)
+  replacesId     String?         @unique(map: "expenses_replaces_id_key") @map("replaces_id") @db.Uuid
+  replaces       Expense?        @relation("ExpenseCorrection", map: "expenses_replaces_fk", fields: [groupId, replacesId], references: [groupId, id], onDelete: Restrict, onUpdate: NoAction)
+  replacements   Expense[]       @relation("ExpenseCorrection")
   createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   group          Group           @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
@@ -223,6 +238,7 @@ model Expense {
   voider         Membership?     @relation("ExpenseVoider", fields: [groupId, voidedBy], references: [groupId, userId], onDelete: Restrict, onUpdate: NoAction)
 
   @@unique([groupId, idempotencyKey], map: "expenses_group_id_idempotency_key_key")
+  @@unique([groupId, id], map: "expenses_group_id_id_key")
   @@index([groupId, matchId, status], map: "expenses_match_status_idx")
   @@map("expenses")
 }
@@ -256,4 +272,73 @@ model AuditEvent {
 
   @@index([groupId, createdAt], map: "audit_events_group_created_idx")
   @@map("audit_events")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  token     String   @unique
+  userId    String   @map("user_id") @db.Uuid
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  ipAddress String?  @map("ip_address") @db.VarChar(64)
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([userId])
+  @@map("auth_sessions")
+}
+
+model Account {
+  id                    String    @id @default(uuid()) @db.Uuid
+  userId                String    @map("user_id") @db.Uuid
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  password              String?
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(6)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamptz(6)
+  scope                 String?
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("auth_accounts")
+}
+
+model Verification {
+  id         String   @id @default(uuid()) @db.Uuid
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([identifier])
+  @@map("auth_verifications")
+}
+
+model GroupInvitation {
+  id         String         @id @default(uuid()) @db.Uuid
+  groupId    String         @map("group_id") @db.Uuid
+  email      String         @db.VarChar(254)
+  role       MembershipRole @default(USER)
+  tokenHash  String         @unique @map("token_hash") @db.VarChar(64)
+  expiresAt  DateTime       @map("expires_at") @db.Timestamptz(6)
+  createdBy  String         @map("created_by") @db.Uuid
+  acceptedAt DateTime?      @map("accepted_at") @db.Timestamptz(6)
+  acceptedBy String?        @map("accepted_by") @db.Uuid
+  revokedAt  DateTime?      @map("revoked_at") @db.Timestamptz(6)
+  createdAt  DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  group      Group          @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  creator    Membership     @relation("InvitationCreator", fields: [groupId, createdBy], references: [groupId, userId], onDelete: Restrict, onUpdate: NoAction)
+  acceptor   Membership?    @relation("InvitationAcceptor", fields: [groupId, acceptedBy], references: [groupId, userId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([groupId, createdAt])
+  @@map("group_invitations")
 }

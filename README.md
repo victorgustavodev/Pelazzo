@@ -1,53 +1,77 @@
 # Pelazzo
 
-Base de um aplicativo para organizar peladas, gerenciar mensalistas e diaristas, acompanhar o caixa das partidas e sortear times. Este chore prepara a infraestrutura; as funcionalidades do MVP ainda serão implementadas.
+Aplicação para organizar peladas: mensalistas e diaristas, partidas e presenças, caixa com valores livres, Pix, sorteio de times e vários administradores. Frontend React/Vite integrado à API NestJS, com PostgreSQL e Swagger.
 
-As regras de produto, negócio e arquitetura estão na pasta [.ai](.ai/README.md). O [AGENTS.md](AGENTS.md) orienta agentes de IA a consultar essa documentação antes de implementar o projeto.
+As regras obrigatórias estão no [AGENTS.md](AGENTS.md) e na [.ai](.ai/README.md). O [guia da API](docs/api.md) explica autenticação, referências financeiras e idempotência.
+
+## Rodar tudo em Docker
+
+Com Node.js 24 e Docker Desktop/Engine em execução, na raiz:
+
+```sh
+node scripts/setup-dev-env.mjs
+docker compose up --build -d --wait
+```
+
+O primeiro comando gera o segredo local sem exibi-lo, preservando configurações existentes. Não exige `npm install`. O Compose instala dependências na imagem, inicia PostgreSQL, aplica as migrations e sobe API e frontend após as verificações de saúde.
+
+- [Aplicação](http://localhost:5173)
+- [Swagger](http://localhost:3000/api/docs)
+- [OpenAPI JSON](http://localhost:3000/api/docs-json)
+- [Readiness](http://localhost:3000/api/health/ready)
+
+Cadastre sua conta e crie a primeira pelada: você será seu primeiro administrador. No painel, crie convites por e-mail e compartilhe o código manualmente. Os convidados cadastram a conta com o mesmo e-mail e usam “Tenho um convite”. Não há conta padrão, senha pública ou dados fictícios cadastrados automaticamente.
+
+O banco local usa `localhost:5432`, banco/usuário `pelazzo` e senha fictícia `local_dev_only`. As portas são limitadas a 127.0.0.1. O volume preserva os dados; `docker compose down` não apaga o banco. Não use `down -v` para uma parada normal.
+
+```sh
+docker compose ps --all
+docker compose logs -f backend frontend
+docker compose down
+```
+
+Código tem recarga automática. Após alterar dependências ou Dockerfile, reconstrua a imagem. Migrations são versionadas; o serviço `migrate` deve terminar com código 0. Não aplicar o SQL de referência em paralelo nem usar `db push`.
+
+## Funcionalidades do MVP
+
+- Cadastro, login e troca de senha; sessões revogáveis e convites de uso único ligados ao e-mail.
+- Peladas isoladas, membros USER/ADMIN e proteção do último administrador, inclusive com operações concorrentes.
+- Participantes com vínculo opcional à conta, modalidade e desativação sem perda de histórico.
+- Agenda, presenças, valor esperado individual opcional e caixa de cada partida.
+- Recebimentos parciais/múltiplos, despesas, anulações e correções com motivo e histórico preservado.
+- Caixa geral inclui recebimentos mensais por competência; caixa da partida inclui somente os seus lançamentos.
+- Usuários consultam seus próprios detalhes financeiros e totais agregados da turma.
+- Uma chave Pix ativa por pelada, favorecido, copiar chave e contato WhatsApp. O comprovante é anexado manualmente; o admin confere e registra o recebimento.
+- Sorteio aleatório para usuário e admin, quantidade exata de nomes e um goleiro por time quando habilitado. Goleiro conta no tamanho do time.
+- Nome, cor e fuso por pelada, com contraste de texto e interface responsiva.
+- Auditoria administrativa, validação de entrada, limites de requisição e Swagger com token Bearer.
+
+Não há integração bancária, cobrança automática, upload de comprovantes, balanceamento por habilidade ou envio automático de e-mails.
 
 ## Stack
 
-| Camada       | Tecnologia                                                        |
-| ------------ | ----------------------------------------------------------------- |
-| Frontend     | React 19.3.0 + Vite 8.3.4 + TypeScript                            |
-| Backend      | NestJS 12.1.2 + TypeScript, Clean Architecture e Modular Monolith |
-| Persistência | PostgreSQL 18.6 + Prisma 7.10.0                                   |
-| Runtime      | Node.js 24 e npm 11 ou superior                                   |
+| Camada   | Tecnologia                                                      |
+| -------- | --------------------------------------------------------------- |
+| Frontend | React 19.3.0, Vite 8.3.4, React Router 7.18.4, TypeScript 6.0.3 |
+| Backend  | NestJS 12.1.2, Better Auth 1.7.7, Swagger 12.0.2                |
+| Banco    | PostgreSQL 18.6, Prisma 7.10.0                                  |
+| Runtime  | Node.js 24, npm 11 ou superior                                  |
 
-As versões foram consultadas em 11/10/2026. Dependências diretas e lockfile fixam as versões instaladas. TypeScript 6.0.3 atende à compatibilidade do CLI NestJS e typescript-eslint; versões RC/beta não são usadas.
+Versões estáveis fixadas no lockfile. NestJS/Prisma ficam nas camadas externas; Domain/Application dependem de portas. O lint protege a direção das dependências. Valores financeiros são inteiros em centavos e somas usam precisão inteira, com limites verificados.
 
-## Executar localmente
-
-Instale Node.js 24 e Docker com o Engine em execução. Na raiz:
+## Executar com Node.js no host
 
 ```sh
 npm ci
-```
-
-Copie `backend/.env.example` para `backend/.env` e `frontend/.env.example` para `frontend/.env`. No PowerShell:
-
-```powershell
-Copy-Item backend/.env.example backend/.env
-Copy-Item frontend/.env.example frontend/.env
-```
-
-Os arquivos de exemplo contêm apenas credenciais fictícias do ambiente local. Não use essa senha em ambientes publicados.
-
-```sh
+npm run dev:setup
 npm run db:up
 npm run db:deploy
 npm run dev
 ```
 
-- Frontend: http://localhost:5173
-- API: http://localhost:3000/api
-- Liveness: `GET /api/health` (processo ativo)
-- Readiness: `GET /api/health/ready` (consulta real via Prisma; HTTP 503 se o banco estiver indisponível)
+O script prepara `.env` da raiz e do backend sem sobrescrever segredos existentes. O frontend usa `/api` via proxy por padrão. Se os containers da aplicação estiverem em execução, pare backend/frontend antes de iniciar no host para liberar as mesmas portas.
 
-O Vite encaminha `/api` ao backend no desenvolvimento. Em produção, configure um reverse proxy ou `VITE_API_BASE_URL` público no build e ajuste `FRONTEND_ORIGIN` no backend. Nunca coloque `DATABASE_URL` em variável `VITE_*`.
-
-Sem PostgreSQL, a API pode iniciar com URL configurada; o readiness e a tela inicial informam indisponibilidade. Não há autenticação ou endpoints de dados pessoais neste scaffold.
-
-## Comandos
+## Validação
 
 ```sh
 npm run lint
@@ -55,29 +79,23 @@ npm run typecheck
 npm test
 npm run build
 npm run format:check
+docker compose run --rm migrate npm run test:integration
 ```
 
-`npm test` verifica configuração, casos de uso de saúde, tradução para respostas HTTP e integridade da migration em PostgreSQL embarcado descartável (PGlite), sem abrir portas locais ou exigir Docker. Esse teste não substitui a validação no PostgreSQL 18: o CI aplica a migration nesse banco e testa os endpoints e a conexão do backend compilado com `node scripts/smoke.mjs`.
+`npm test` verifica domínio, permissões, saúde, constraints no PGlite e jornadas do frontend. A integração HTTP usa PostgreSQL real em banco temporário criado e removido pelo runner: cadastro, convites, isolamento, concorrência, financeiro, sorteio, sessões e Swagger. O usuário de teste precisa de permissão `CREATEDB`; o teste não insere fixtures no banco principal. CI executa essas verificações no PostgreSQL 18.
 
-Overrides restritos ao tooling Prisma atualizam `deepmerge-ts` e `mysql2` para versões corrigidas, mantendo o Prisma estável. Reavaliar esses overrides ao atualizar o Prisma.
+## Configuração e publicação
 
-`npm run db:generate` gera o cliente Prisma ignorado pelo Git. Build, typecheck e testes do backend também o geram automaticamente. `npm run db:validate` valida o modelo. `npm run db:deploy` aplica migrations versionadas; para criar novas, use `npm run db:migrate --workspace @pelazzo/backend -- --name <nome>` e revise o SQL gerado.
+Consulte [backend/.env.example](backend/.env.example) e [frontend/.env.example](frontend/.env.example). Segredos nunca entram em `VITE_*` nem são versionados. `AUTH_SECRET` precisa ter no mínimo 32 caracteres, `AUTH_BASE_URL` aponta à API e `FRONTEND_ORIGIN` à interface. Swagger fica desabilitado por padrão em produção.
 
-`npm run db:down` para os containers preservando o volume do banco. O Compose configura somente PostgreSQL para desenvolvimento; frontend e backend rodam pelo npm.
-
-## Estrutura
+O Dockerfile atual é para desenvolvimento. Para publicar: frontend estático com fallback de rotas para `index.html`, API Node.js e PostgreSQL gerenciado, HTTPS e configuração dos origins/URLs. Use `VITE_API_BASE_URL` no build ou proxy `/api`. Backup, recuperação e credenciais de produção precisam ser configurados no ambiente de hospedagem. A aplicação não foi publicada em serviço externo.
 
 ```text
-frontend/src/        # páginas React, serviços HTTP e demais pastas de interface
-backend/src/
-  modules/health/   # Domain, Application, Infrastructure e Presentation
-  shared/           # database, config, errors e utils
-backend/prisma/     # modelo e migrations
-scripts/            # testes de migration e smoke de conexão real
-.github/workflows/  # lint, tipos, testes, build e migration no CI
-.ai/                # regras e decisões do projeto
+frontend/src/{pages,components,hooks,services,types,utils}
+backend/src/modules/{auth,groups,participants,matches,finance,team-draw,health}
+backend/src/shared/{domain,application,infrastructure,presentation,database,config}
+backend/prisma/                # schema e migrations aplicadas
+docs/api.md                    # contratos e uso do Swagger
+scripts/                       # configuração e testes de banco/integração
+.ai/                           # regras, arquitetura e decisões
 ```
-
-Módulos de negócio serão criados conforme implementados, seguindo a mesma direção de dependências do módulo health. O lint bloqueia imports de framework e infraestrutura em Domain/Application. Controllers apenas adaptam HTTP; casos de uso dependem de contratos e são compostos por factories nos módulos NestJS.
-
-A [arquitetura do banco](.ai/database/README.md) inclui diagrama relacional, responsabilidades por módulo, constraints, índices e um [SQL PostgreSQL de referência](.ai/database/schema.sql), seguindo a regra Clean Architecture + Modular Monolith + SOLID fornecida para o projeto.

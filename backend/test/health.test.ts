@@ -38,7 +38,10 @@ for (const available of [true, false]) {
 }
 
 test('configuração rejeita porta, origem e banco inválidos sem revelar credenciais', () => {
-  const valid = { DATABASE_URL: 'postgresql://user:fake@localhost:5432/test' };
+  const valid = {
+    DATABASE_URL: 'postgresql://user:fake@localhost:5432/test',
+    AUTH_SECRET: 'test-only-auth-secret-at-least-32-characters',
+  };
   assert.equal(validateEnvironment(valid).PORT, 3000);
   assert.throws(() => validateEnvironment({}), /DATABASE_URL/);
   assert.throws(() => validateEnvironment({ ...valid, PORT: -1 }), /PORT/);

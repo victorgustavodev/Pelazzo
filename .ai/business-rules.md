@@ -7,6 +7,9 @@
 - Uma pelada deve ter pelo menos um administrador ativo. É proibido remover ou rebaixar o último administrador.
 - Administradores podem promover e rebaixar membros da própria pelada. Operações são auditadas.
 - Usuários não podem registrar, confirmar, corrigir ou excluir pagamentos nem alterar configurações.
+- Acesso local por e-mail/senha. Qualquer conta autenticada pode criar uma pelada, tornando-se seu primeiro administrador em transação.
+- Entrada em pelada existente é por convite vinculado ao e-mail da conta, com papel USER ou ADMIN escolhido pelo administrador. Convites expiram, podem ser revogados e têm uso único. Uma conta desativada pode retornar por novo convite válido.
+- Não há envio de e-mail automático nem recuperação por e-mail no MVP. O usuário pode trocar a senha autenticado; a operação encerra suas outras sessões.
 
 ## Participantes e partidas
 

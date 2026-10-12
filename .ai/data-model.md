@@ -2,7 +2,7 @@
 
 Identificadores são UUIDs. Entidades persistidas possuem `createdAt` e `updatedAt` quando aplicável. Valores monetários são inteiros em centavos.
 
-O detalhamento físico, índices, diagrama e limites de integridade estão em [database/README.md](database/README.md). O SQL de referência usa nomes `snake_case`; os modelos Prisma poderão usar os nomes abaixo com `@map`/`@@map`. As tabelas de sessão e credenciais dependem do provedor de autenticação escolhido.
+O detalhamento físico, índices, diagrama e limites de integridade estão em [database/README.md](database/README.md). O SQL de referência inicial usa `snake_case`, mapeado no Prisma. A autenticação é local por e-mail/senha com Better Auth; sessões e contas foram adicionadas por migration própria.
 
 | Entidade         | Campos principais                                                                                                                                                                                            | Restrições                                                                                                     |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
@@ -18,6 +18,10 @@ O detalhamento físico, índices, diagrama e limites de integridade estão em [d
 | AuditEvent       | id, groupId, actorUserId, action, entityType, entityId, metadata, createdAt                                                                                                                                  | Histórico sem edição pelo usuário; metadados mínimos sem segredos                                              |
 
 ## Invariantes relacionais
+
+- User possui e-mail normalizado único, nome e campos exigidos pelo provedor. AuthAccount guarda credenciais geridas pelo Better Auth, AuthSession guarda sessões revogáveis e AuthVerification é uma tabela de suporte da biblioteca (fluxos de e-mail fora do MVP).
+- GroupInvitation vincula e-mail convidado, papel e pelada; apenas hash do token é guardado. Possui expiração, autor, aceitação e revogação. Aceitação requer a conta do mesmo e-mail e convite válido, de uso único.
+- Payment/Expense possuem `replacesId` opcional único, FK da mesma pelada e proibição de auto-referência. Não editar valores existentes: correção anula o original e cria o substituto atomicamente.
 
 - Referências de participantes, partidas, lançamentos e configurações devem pertencer à mesma pelada. Validar no servidor e reforçar com restrições relacionais quando possível.
 - `Payment.participantId` deve corresponder ao participante da participação vinculada.

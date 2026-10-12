@@ -25,6 +25,9 @@ jobs:
     env:
       DATABASE_URL: postgresql://pelazzo:ci_only@localhost:5432/pelazzo_test?schema=public
       FRONTEND_ORIGIN: http://localhost:5173
+      AUTH_SECRET: test-only-ci-auth-secret-at-least-32-characters
+      AUTH_BASE_URL: http://localhost:3000
+      SWAGGER_ENABLED: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,6 +40,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - run: npm run test:integration
       - run: npm run build
       - run: npm run format:check
       - run: node scripts/smoke.mjs

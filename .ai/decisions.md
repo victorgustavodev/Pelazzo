@@ -20,8 +20,7 @@ Estas escolhas completam pontos não especificados pelo responsável e podem ser
 
 ## Confirmar antes de implementar funcionalidades dependentes
 
-- Como a primeira pelada e seu primeiro administrador serão criados: fluxo de cadastro ou provisionamento inicial.
-- Provedor de autenticação e forma de entrada dos demais membros: convite ou aprovação administrativa.
+- Decisões de autenticação e criação inicial resolvidas em 12/10/2026, registradas abaixo.
 - Se mensalidades deverão ser rateadas entre partidas no futuro e qual a regra explícita de rateio.
 - Se haverá sorteio público sem conta, reservas, múltiplos times com tamanhos distintos ou balanceamento por habilidade.
 - Se Pix por administrador individual deve substituir a configuração única por pelada.
@@ -54,4 +53,26 @@ NestJS 12 usa ESM: backend e cliente Prisma são gerados em ESM com resolução 
 
 Testes locais de controllers/casos de uso não abrem portas, pois a conexão HTTP local foi bloqueada pelo sandbox e a execução fora dele foi recusada. O workflow inclui smoke HTTP com o backend compilado e PostgreSQL real.
 
+### 2026-10-11 — Ambiente completo de desenvolvimento em Docker
+
+Por solicitação do responsável, o Compose passa a incluir PostgreSQL, migrations, backend e frontend. Um Dockerfile de desenvolvimento compartilhado aproveita o monorepo npm e o lockfile único. A aplicação de migrations é um serviço temporário que precisa terminar com sucesso antes do backend; o frontend depende do readiness do backend.
+
+Bind mounts permitem editar o código no host. Polling suporta alterações de arquivos no Docker Desktop/Windows. Node_modules não é montado do host, e o cliente Prisma gerado fica em volume separado. PostgreSQL usa volume persistente e as portas publicadas são limitadas a 127.0.0.1. O container do frontend consome exclusivamente a API via proxy; não recebe credenciais de banco.
+
+As tabelas e colunas já definidas são materializadas pela migration inicial, sem criar nova migration redundante. Não cadastrar dados de negócio fictícios no banco principal nem alterar o fluxo de autenticação para atender à execução em Docker.
+
 Registrar data, contexto, decisão, motivo e consequências. Marcar decisões substituídas sem apagar o histórico. Atualizar os demais documentos afetados na mesma alteração.
+
+### 2026-10-12 — MVP completo e autenticação com convites
+
+O responsável escolheu e-mail/senha no próprio backend, com convites, solicitou Swagger e autorizou concluir o backend e depois o frontend, adotando as sugestões reversíveis necessárias. Usar Better Auth 1.7.7 na Infrastructure, sem expor seu handler genérico. Registro cria conta/sessão; criar pelada cria o primeiro administrador atomicamente. Convites ligam e-mail, papel e pelada, expiram em 1–30 dias (padrão 7), têm uso único e revogação. Só SHA-256 do token aleatório fica no banco; compartilhar é manual, sem serviço de e-mail.
+
+Sessões são opacas, revogáveis e expiram em sete dias. Frontend usa sessionStorage e limpa token ao sair ou receber 401. Troca de senha autenticada revoga as demais sessões. Recuperação de senha e verificação por e-mail exigem futura integração e não fazem parte do MVP solicitado.
+
+Módulos preservam as camadas obrigatórias. Uma UnitOfWork com portas específicas permite atomicidade entre financeiro, membros, Pix e auditoria. Bloqueio da linha da pelada serializa operações sensíveis, incluindo remoção concorrente do último administrador. Correções possuem referência `replacesId`, permitindo reenvio idempotente com preservação do histórico. Migration aditiva mantém dados e constraints originais.
+
+Swagger em `/api/docs` e `/api/docs-json`, ativo no desenvolvimento e desligado por padrão em produção, documenta Bearer opaco e contratos. Limites: listas até 100/página; sorteio até 50 times, 50 pessoas/time e 500 entradas; lançamentos positivos até 2.147.483.647 centavos, somas verificadas como inteiros seguros. Esses limites são operacionais, sem alterar valores livres ou gerar cobranças.
+
+Frontend React Router com CSS por pelada, telas em português, estados de erro/vazio e formulários responsivos. Não criar dados fictícios no banco principal. Chave Pix validada por formato (incluindo CNPJ alfanumérico), sem validar titularidade ou confirmação bancária. WhatsApp apenas abre a conversa para anexo manual. Segredo local gerado por `scripts/setup-dev-env.mjs`, ignorado pelo Git.
+
+Testes unitários/fakes, constraints PGlite e integração HTTP em PostgreSQL real isolado validam permissões, caixa, idempotência, concorrência, sessões, convites e Swagger. Testes de interface validam contratos do sorteio/convite e reenvio financeiro. Hospedagem continua uma decisão para futura publicação; não provisionar serviços externos nesta entrega local.
