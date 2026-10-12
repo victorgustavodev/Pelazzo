@@ -1,0 +1,48 @@
+{
+  "name": "pelazzo",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "npm": ">=11"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n api,web npm:dev:backend npm:dev:frontend",
+    "dev:frontend": "npm run dev --workspace @pelazzo/frontend",
+    "dev:backend": "npm run start:dev --workspace @pelazzo/backend",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspace @pelazzo/backend && npm run test:database",
+    "test:database": "node --test scripts/database.test.mjs",
+    "db:generate": "npm run db:generate --workspace @pelazzo/backend",
+    "db:validate": "npm run db:validate --workspace @pelazzo/backend",
+    "db:migrate": "npm run db:migrate --workspace @pelazzo/backend",
+    "db:deploy": "npm run db:deploy --workspace @pelazzo/backend",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "overrides": {
+    "@prisma/config": {
+      "deepmerge-ts": "8.0.2"
+    },
+    "prisma": {
+      "mysql2": "3.24.5"
+    }
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.4.3",
+    "concurrently": "10.0.6",
+    "prettier": "3.9.10"
+  },
+  "allowScripts": {
+    "@prisma/engines@7.10.0": true,
+    "prisma@7.10.0": true
+  }
+}

@@ -1,0 +1,259 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MembershipRole {
+  USER
+  ADMIN
+
+  @@map("membership_role")
+}
+
+enum ParticipantModality {
+  MONTHLY
+  DAILY
+
+  @@map("participant_modality")
+}
+
+enum MatchStatus {
+  SCHEDULED
+  FINISHED
+  CANCELED
+
+  @@map("match_status")
+}
+
+enum FinancialStatus {
+  CONFIRMED
+  VOIDED
+
+  @@map("financial_status")
+}
+
+enum PaymentMethod {
+  PIX
+  CASH
+  OTHER
+
+  @@map("payment_method")
+}
+
+enum PixKeyType {
+  CPF
+  CNPJ
+  EMAIL
+  PHONE
+  RANDOM
+
+  @@map("pix_key_type")
+}
+
+model User {
+  id           String        @id @default(uuid()) @db.Uuid
+  displayName  String        @map("display_name") @db.VarChar(120)
+  authProvider String        @map("auth_provider") @db.VarChar(100)
+  authSubject  String        @map("auth_subject") @db.VarChar(255)
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  memberships  Membership[]
+  participants Participant[]
+
+  @@unique([authProvider, authSubject], map: "users_auth_provider_auth_subject_key")
+  @@map("users")
+}
+
+model Group {
+  id             String             @id @default(uuid()) @db.Uuid
+  name           String             @db.VarChar(80)
+  primaryColor   String             @default("#15803D") @map("primary_color") @db.VarChar(7)
+  timezone       String             @default("America/Sao_Paulo") @db.VarChar(100)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  memberships    Membership[]
+  participants   Participant[]
+  matches        Match[]
+  participations MatchParticipant[]
+  payments       Payment[]
+  expenses       Expense[]
+  pixSettings    PixSettings?
+  auditEvents    AuditEvent[]
+
+  @@map("groups")
+}
+
+model Membership {
+  id               String         @id @default(uuid()) @db.Uuid
+  groupId          String         @map("group_id") @db.Uuid
+  userId           String         @map("user_id") @db.Uuid
+  role             MembershipRole @default(USER)
+  active           Boolean        @default(true)
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  group            Group          @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  user             User           @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  participants     Participant[]
+  recordedPayments Payment[]      @relation("PaymentRecorder")
+  voidedPayments   Payment[]      @relation("PaymentVoider")
+  recordedExpenses Expense[]      @relation("ExpenseRecorder")
+  voidedExpenses   Expense[]      @relation("ExpenseVoider")
+  pixSettings      PixSettings[]
+  auditEvents      AuditEvent[]
+
+  @@unique([groupId, userId], map: "memberships_group_id_user_id_key")
+  @@index([userId, active], map: "memberships_user_active_idx")
+  @@map("memberships")
+}
+
+model Participant {
+  id             String              @id @default(uuid()) @db.Uuid
+  groupId        String              @map("group_id") @db.Uuid
+  userId         String?             @map("user_id") @db.Uuid
+  name           String              @db.VarChar(120)
+  modality       ParticipantModality
+  active         Boolean             @default(true)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  group          Group               @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  user           User?               @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  membership     Membership?         @relation(fields: [groupId, userId], references: [groupId, userId], onDelete: Restrict, onUpdate: NoAction)
+  participations MatchParticipant[]
+  payments       Payment[]
+
+  // Unicidade do usuário ativo por pelada é um índice parcial na migration SQL.
+  @@unique([groupId, id], map: "participants_group_id_id_key")
+  @@map("participants")
+}
+
+model Match {
+  id           String             @id @default(uuid()) @db.Uuid
+  groupId      String             @map("group_id") @db.Uuid
+  title        String             @db.VarChar(120)
+  startsAt     DateTime           @map("starts_at") @db.Timestamptz(6)
+  location     String?            @db.VarChar(255)
+  status       MatchStatus        @default(SCHEDULED)
+  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  group        Group              @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  participants MatchParticipant[]
+  expenses     Expense[]
+
+  @@unique([groupId, id], map: "matches_group_id_id_key")
+  @@index([groupId, startsAt], map: "matches_group_start_idx")
+  @@map("matches")
+}
+
+model MatchParticipant {
+  id                  String              @id @default(uuid()) @db.Uuid
+  groupId             String              @map("group_id") @db.Uuid
+  matchId             String              @map("match_id") @db.Uuid
+  participantId       String              @map("participant_id") @db.Uuid
+  modalitySnapshot    ParticipantModality @map("modality_snapshot")
+  expectedAmountCents Int?                @map("expected_amount_cents")
+  createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  group               Group               @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  match               Match               @relation(fields: [groupId, matchId], references: [groupId, id], onDelete: Restrict, onUpdate: NoAction)
+  participant         Participant         @relation(fields: [groupId, participantId], references: [groupId, id], onDelete: Restrict, onUpdate: NoAction)
+  payments            Payment[]
+
+  @@unique([groupId, matchId, participantId], map: "match_participants_group_id_match_id_participant_id_key")
+  @@unique([groupId, id, participantId], map: "match_participants_group_id_id_participant_id_key")
+  @@index([groupId, participantId], map: "match_participants_participant_idx")
+  @@map("match_participants")
+}
+
+model Payment {
+  id                 String            @id @default(uuid()) @db.Uuid
+  groupId            String            @map("group_id") @db.Uuid
+  participantId      String            @map("participant_id") @db.Uuid
+  matchParticipantId String?           @map("match_participant_id") @db.Uuid
+  competence         String?           @db.VarChar(7)
+  amountCents        Int               @map("amount_cents")
+  currency           String            @default("BRL") @db.VarChar(3)
+  receivedAt         DateTime          @map("received_at") @db.Timestamptz(6)
+  method             PaymentMethod
+  status             FinancialStatus   @default(CONFIRMED)
+  recordedBy         String            @map("recorded_by") @db.Uuid
+  voidReason         String?           @map("void_reason") @db.VarChar(500)
+  voidedBy           String?           @map("voided_by") @db.Uuid
+  voidedAt           DateTime?         @map("voided_at") @db.Timestamptz(6)
+  idempotencyKey     String            @map("idempotency_key") @db.VarChar(128)
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  group              Group             @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  participant        Participant       @relation(fields: [groupId, participantId], references: [groupId, id], onDelete: Restrict, onUpdate: NoAction)
+  participation      MatchParticipant? @relation(fields: [groupId, matchParticipantId, participantId], references: [groupId, id, participantId], onDelete: Restrict, onUpdate: NoAction)
+  recorder           Membership        @relation("PaymentRecorder", fields: [groupId, recordedBy], references: [groupId, userId], onDelete: Restrict, onUpdate: NoAction)
+  voider             Membership?       @relation("PaymentVoider", fields: [groupId, voidedBy], references: [groupId, userId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([groupId, idempotencyKey], map: "payments_group_id_idempotency_key_key")
+  @@index([groupId, matchParticipantId, status], map: "payments_participation_status_idx")
+  @@index([groupId, participantId, receivedAt], map: "payments_participant_received_idx")
+  // Índice parcial de competência e checks são mantidos na migration SQL.
+  @@map("payments")
+}
+
+model Expense {
+  id             String          @id @default(uuid()) @db.Uuid
+  groupId        String          @map("group_id") @db.Uuid
+  matchId        String          @map("match_id") @db.Uuid
+  description    String          @db.VarChar(255)
+  amountCents    Int             @map("amount_cents")
+  currency       String          @default("BRL") @db.VarChar(3)
+  occurredAt     DateTime        @map("occurred_at") @db.Timestamptz(6)
+  status         FinancialStatus @default(CONFIRMED)
+  recordedBy     String          @map("recorded_by") @db.Uuid
+  voidReason     String?         @map("void_reason") @db.VarChar(500)
+  voidedBy       String?         @map("voided_by") @db.Uuid
+  voidedAt       DateTime?       @map("voided_at") @db.Timestamptz(6)
+  idempotencyKey String          @map("idempotency_key") @db.VarChar(128)
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  group          Group           @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  match          Match           @relation(fields: [groupId, matchId], references: [groupId, id], onDelete: Restrict, onUpdate: NoAction)
+  recorder       Membership      @relation("ExpenseRecorder", fields: [groupId, recordedBy], references: [groupId, userId], onDelete: Restrict, onUpdate: NoAction)
+  voider         Membership?     @relation("ExpenseVoider", fields: [groupId, voidedBy], references: [groupId, userId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([groupId, idempotencyKey], map: "expenses_group_id_idempotency_key_key")
+  @@index([groupId, matchId, status], map: "expenses_match_status_idx")
+  @@map("expenses")
+}
+
+model PixSettings {
+  groupId              String     @id @map("group_id") @db.Uuid
+  recipientAdminUserId String     @map("recipient_admin_user_id") @db.Uuid
+  keyType              PixKeyType @map("key_type")
+  keyValue             String     @map("key_value") @db.VarChar(255)
+  recipientName        String     @map("recipient_name") @db.VarChar(120)
+  contactPhone         String     @map("contact_phone") @db.VarChar(16)
+  createdAt            DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  group                Group      @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  recipient            Membership @relation(fields: [groupId, recipientAdminUserId], references: [groupId, userId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@map("pix_settings")
+}
+
+model AuditEvent {
+  id          String     @id @default(uuid()) @db.Uuid
+  groupId     String     @map("group_id") @db.Uuid
+  actorUserId String     @map("actor_user_id") @db.Uuid
+  action      String     @db.VarChar(100)
+  entityType  String     @map("entity_type") @db.VarChar(100)
+  entityId    String     @map("entity_id") @db.Uuid
+  metadata    Json       @default("{}") @db.JsonB
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  group       Group      @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  actor       Membership @relation(fields: [groupId, actorUserId], references: [groupId, userId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@index([groupId, createdAt], map: "audit_events_group_created_idx")
+  @@map("audit_events")
+}

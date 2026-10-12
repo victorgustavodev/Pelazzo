@@ -1,0 +1,9 @@
+package-lock.json
+node_modules
+dist
+test-dist
+coverage
+backend/src/generated
+.ai/architecture-rule.md
+.ai/database/schema.sql
+backend/prisma/migrations

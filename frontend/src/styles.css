@@ -1,0 +1,60 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #18332a;
+  background: #f4f7f2;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+}
+.home {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: clamp(48px, 12vw, 120px) 24px;
+}
+.brand {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #15803d;
+}
+h1 {
+  font-size: clamp(2.5rem, 7vw, 4.5rem);
+  letter-spacing: -0.05em;
+  line-height: 1.1;
+  margin: 40px 0 24px;
+}
+.intro {
+  font-size: 1.25rem;
+  line-height: 1.7;
+  max-width: 520px;
+}
+.notice {
+  color: #496052;
+  margin-top: 40px;
+}
+.connection {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #64748b;
+  flex-shrink: 0;
+}
+.ready .dot {
+  background: #15803d;
+}
+.unavailable .dot {
+  background: #b45309;
+}
