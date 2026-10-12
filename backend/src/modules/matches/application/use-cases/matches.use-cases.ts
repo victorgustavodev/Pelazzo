@@ -175,6 +175,7 @@ export class ListParticipationsUseCase {
             matchId: row.matchId,
             participantId: row.participantId,
             modalitySnapshot: row.modalitySnapshot,
+            publicConfirmedAt: row.publicConfirmedAt,
             createdAt: row.createdAt,
             updatedAt: row.updatedAt,
             ...(canSee ? { expectedAmountCents: row.expectedAmountCents } : {}),

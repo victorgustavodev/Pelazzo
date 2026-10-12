@@ -53,7 +53,7 @@ export interface PixRepository {
 }
 export interface AuditWrite {
   groupId: string;
-  actorUserId: string;
+  actorUserId: string | null;
   action: string;
   entityType: string;
   entityId: string;
@@ -62,7 +62,7 @@ export interface AuditWrite {
 export interface AuditEvent {
   id: string;
   groupId: string;
-  actorUserId: string;
+  actorUserId: string | null;
   action: string;
   entityType: string;
   entityId: string;

@@ -3,7 +3,7 @@
 ## Peladas e permissões
 
 - Toda informação pertence a uma pelada. Uma conta pode participar de mais de uma, com papéis distintos.
-- Apenas membros autenticados acessam a pelada no MVP. Visitantes não têm acesso; “qualquer pessoa” no sorteio significa qualquer usuário ou administrador autorizado da pelada.
+- Membros autenticados acessam a pelada. A exceção pública é o check-in pelo link aberto por um administrador, limitado aos dados da partida e à confirmação pelo nome. “Qualquer pessoa” no sorteio significa qualquer usuário ou administrador autorizado da pelada.
 - Uma pelada deve ter pelo menos um administrador ativo. É proibido remover ou rebaixar o último administrador.
 - Administradores podem promover e rebaixar membros da própria pelada. Operações são auditadas.
 - Usuários não podem registrar, confirmar, corrigir ou excluir pagamentos nem alterar configurações.
@@ -19,6 +19,17 @@
 - Um participante só pode aparecer uma vez na lista de presença da mesma partida.
 - Cancelar uma partida não apaga seu histórico financeiro.
 - Alterar a modalidade do participante não altera registros históricos da partida.
+
+## Check-in por link compartilhado
+
+- Ao confirmar que haverá uma partida agendada, o administrador informa o campo/endereço e gera um único link para toda a turma. Não escolher destinatários nem exigir e-mail, conta ou senha nesse fluxo.
+- O link abre um modal com apenas o nome. A confirmação exibe “Presença confirmada!”, o nome e “te aguardo em:” com campo/endereço e data.
+- O link vale até 24 horas após o horário da partida. Pode ser encerrado pelo administrador; gerar outro invalida o anterior. Partidas finalizadas/canceladas não aceitam check-in.
+- Token aleatório de 256 bits, guardado somente por hash. Aparece apenas na geração; o administrador copia e compartilha o mesmo link com todos. Não enviar mensagens automaticamente.
+- Reutilizar um único participante ativo da mesma pelada com o mesmo nome normalizado (Unicode NFC, espaços e comparação sem diferenciar maiúsculas). Reenvio, inclusive concorrente, não duplica presença. Para homônimos ambíguos, solicitar sobrenome ou apelido distintivo.
+- Nome novo cria participante DAILY, ativo e sem conta vinculada; o administrador pode ajustar a modalidade posteriormente. Participante existente preserva modalidade, conta e histórico. Check-in não cria membership, pagamento, valor esperado ou dívida.
+- Auditar confirmação pública com autor nulo, identificado como “Pelo link da partida”; não atribuir a ação a um administrador. Registrar apenas referências, sem nomes ou tokens nos metadados.
+- A resposta pública contém apenas nome da pelada, cor, fuso, título, data e local da partida, mais o nome confirmado na resposta individual. Não expor lista de pessoas, contas, telefone, Pix, caixa ou detalhes financeiros.
 
 ## Pagamentos e caixa
 
@@ -54,6 +65,7 @@
 - Solicitar quantidade de times, quantidade de pessoas por time, uso de goleiros e lista de nomes.
 - Quantidade de times deve ser inteira e pelo menos dois; pessoas por time deve ser inteira positiva.
 - Total de nomes deve ser exatamente `quantidade de times × pessoas por time`. Bloquear excesso ou falta e explicar o ajuste necessário.
+- A interface cria exatamente esse total de campos de nome, numerados desde 1, e mostra a multiplicação. Reduzir e depois aumentar o total preserva os nomes digitados; campos vazios bloqueiam o sorteio.
 - Goleiro conta como uma das pessoas do time. Se houver goleiros, exigir exatamente um goleiro identificado por time.
 - Com goleiros, sortear os goleiros entre os times e distribuir os jogadores de linha aleatoriamente nas vagas restantes.
 - Sem goleiros, embaralhar a lista inteira e distribuir em grupos do tamanho solicitado.

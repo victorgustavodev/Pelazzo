@@ -77,7 +77,13 @@ export class PixResponseDto {
 export class AuditDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty({ format: 'uuid' }) groupId!: string;
-  @ApiProperty({ format: 'uuid' }) actorUserId!: string;
+  @ApiProperty({
+    format: 'uuid',
+    type: String,
+    nullable: true,
+    description: 'null para confirmações públicas por nome.',
+  })
+  actorUserId!: string | null;
   @ApiProperty() action!: string;
   @ApiProperty() entityType!: string;
   @ApiProperty({ format: 'uuid' }) entityId!: string;
@@ -101,6 +107,8 @@ export class MatchDto extends EntityDto {
   @ApiProperty({ enum: ['SCHEDULED', 'FINISHED', 'CANCELED'] }) status!: string;
 }
 export class ParticipationDto extends EntityDto {
+  @ApiProperty({ format: 'date-time', type: String, nullable: true })
+  publicConfirmedAt!: string | null;
   @ApiProperty({ format: 'uuid' }) groupId!: string;
   @ApiProperty({ format: 'uuid' }) matchId!: string;
   @ApiProperty({ format: 'uuid' }) participantId!: string;

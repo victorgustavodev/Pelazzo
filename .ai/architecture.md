@@ -2,7 +2,7 @@
 
 ## Estado
 
-O MVP possui frontend React + Vite integrado aos módulos NestJS auth, groups, participants, matches, finance, team-draw e health. PostgreSQL + Prisma possui migrations inicial e aditiva de autenticação/convites/correções. A regra fornecida em `architecture-rule.md` é obrigatória: Clean Architecture pragmática, Modular Monolith e SOLID. A arquitetura física está em `database/README.md`; migrations em `backend/prisma` definem o esquema aplicado.
+O MVP possui frontend React + Vite integrado aos módulos NestJS auth, groups, participants, matches, finance, team-draw e health. PostgreSQL + Prisma possui migrations inicial e aditivas de autenticação/convites/correções e check-in público. A regra fornecida em `architecture-rule.md` é obrigatória: Clean Architecture pragmática, Modular Monolith e SOLID. A arquitetura física está em `database/README.md`; migrations em `backend/prisma` definem o esquema aplicado.
 
 O ambiente completo de desenvolvimento usa Docker Compose: PostgreSQL, serviço temporário de migrations, NestJS e Vite. A inicialização depende da saúde do banco e do sucesso das migrations. Volumes preservam o banco e isolam o cliente Prisma gerado; bind mounts e polling permitem recarga do código no Docker Desktop. O Dockerfile compartilhado instala as dependências dos workspaces em Linux, sem reutilizar `node_modules` do host.
 
@@ -55,6 +55,8 @@ Frontend usa React Router, serviços REST tipados, hooks de carregamento cancel�
 Páginas maiores carregam sob demanda com Suspense. O build da raiz força NODE_ENV=production mesmo na imagem de desenvolvimento. A consulta Pix retorna `{settings: configuraçãoOuNull}`, evitando uma resposta HTTP vazia quando ainda não há configuração. O ambiente de revisão visual cria banco temporário e o remove ao encerrar, sem inserir demonstrações no banco principal.
 
 Os exemplos de empresas, CNPJ e e-mail da regra original ilustram a arquitetura; não são requisitos do Pelazzo. Não criar SMTP ou notificações sem uma funcionalidade que os exija.
+
+A rota pública `/attendance#token` abre um modal de nome sem consultar sessão ou exigir conta. O fragmento evita enviar o segredo nos caminhos HTTP; a API recebe token no corpo de POST e responde sem cache. Casos de uso específicos no módulo matches verificam hash, validade e estado da partida. Eles não abrem leitura pública dos demais recursos. Confirmação normaliza o nome e usa os repositórios de participantes/presenças na mesma transação, com bloqueio da pelada e auditoria anônima. Geração e revogação continuam exclusivas do ADMIN.
 
 ## Regras técnicas
 

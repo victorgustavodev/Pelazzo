@@ -76,3 +76,15 @@ Swagger em `/api/docs` e `/api/docs-json`, ativo no desenvolvimento e desligado 
 Frontend React Router com CSS por pelada, telas em português, estados de erro/vazio e formulários responsivos. Não criar dados fictícios no banco principal. Chave Pix validada por formato (incluindo CNPJ alfanumérico), sem validar titularidade ou confirmação bancária. WhatsApp apenas abre a conversa para anexo manual. Segredo local gerado por `scripts/setup-dev-env.mjs`, ignorado pelo Git.
 
 Testes unitários/fakes, constraints PGlite e integração HTTP em PostgreSQL real isolado validam permissões, caixa, idempotência, concorrência, sessões, convites e Swagger. Testes de interface validam contratos do sorteio/convite e reenvio financeiro. Hospedagem continua uma decisão para futura publicação; não provisionar serviços externos nesta entrega local.
+
+### 2026-10-12 — Check-in compartilhado, campos numerados e logo
+
+O responsável solicitou link único por partida para toda a turma confirmar presença pelo nome, explicitamente sem destinatário, e-mail ou cadastro. Este fluxo público específico é independente dos convites de acesso administrativo e não concede acesso à pelada. Administrador confirma partida agendada e informa campo/endereço; modal público pede apenas nome e mostra a confirmação com o local.
+
+Guardar somente SHA-256 do token aleatório de 256 bits; compartilhar manualmente a URL `/attendance#token`. O segredo aparece na geração e não fica nos caminhos HTTP; APIs públicas recebem token no corpo, sem cache. Por escolha reversível, expira 24 horas após o horário da partida. Uma linha por partida: nova geração renova validade e invalida a URL anterior; revogação ou encerramento da partida bloqueia confirmações. Atualizar a data depois de gerar não estende a validade automaticamente: gerar novo link quando necessário.
+
+Normalizar nomes por NFC e espaços, comparando sem diferenciar maiúsculas dentro da mesma pelada. Reutilizar um único participante ativo, recusando ambiguidades de homônimos. Nome novo cria diarista sem conta, modalidade ajustável pelo admin; não inventar preço, conta ou membership. Bloquear a pelada e revalidar o token dentro da transação para evitar duplicações e aceitar revogações concorrentes. Auditoria de ações públicas usa autor nulo e apenas referências. Check-in representa nome declarado pela pessoa, sem verificação de identidade. Exibir apenas dados mínimos da partida, sem listas ou dados financeiros.
+
+O sorteio cria automaticamente `times × pessoas por time` inputs de nome numerados, incluindo goleiros no total. Slots preservam nomes ao reduzir e restaurar o tamanho; só o total atual participa do sorteio. Não há lista de reservas implícita. Mantêm-se as mesmas permissões e contratos REST.
+
+Logo PNG original fornecida pelo responsável fica em `frontend/public/brand`. O componente Brand usa recortes SVG do símbolo e da palavra, mantendo o arquivo original. O favicon SVG contém o mesmo PNG recortado ao símbolo; é regenerado por `node scripts/generate-brand-assets.mjs`. A palavra recebe versão clara por CSS nos fundos escuros, preservando forma e símbolo azul.

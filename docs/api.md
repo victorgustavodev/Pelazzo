@@ -34,6 +34,14 @@ Base local: `http://localhost:3000/api`. Documentação interativa: `/api/docs`;
 
 `…` indica `/groups/:groupId`. Listas retornam `{items,total,page,limit}`; `page` começa em 1 e `limit` vai até 100. Pagamentos aceitam filtro `participantId`, despesas `matchId`. Identificadores são UUIDs; datas ISO 8601 com offset ou `Z`. Os papéis são específicos por pelada. O servidor verifica sessão, vínculo e permissão em cada operação.
 
+## Presença pelo link público
+
+ADMIN gera `POST /groups/:groupId/matches/:matchId/attendance-link` com `{location}` (opcional somente se a partida já possui local). Requer partida SCHEDULED e campo/endereço; retorna `{token,expiresAt}`. Compartilhe com todos a URL do frontend `/attendance#token`; não escolher e-mail nem destinatário. Gerar novamente substitui o link anterior. `GET` no mesmo endpoint retorna `{link:{id,expiresAt,active}|null}` sem segredo; `DELETE` revoga sem apagar presenças.
+
+Sem login, `POST /attendance/details` com `{token}` retorna somente nome da pelada, cor, fuso, título, data e local. `POST /attendance/confirm` com `{token,name}` confirma presença e retorna `{name,match}` com a mesma projeção mínima. O modal público exige só nome e mostra a confirmação com campo/endereço. As respostas têm `Cache-Control: no-store`; não colocar token nos caminhos, logs ou exemplos reais do Swagger.
+
+O mesmo link aceita toda a turma até 24 horas após o horário da partida. Revogação, expiração, renovação ou partida finalizada/cancelada bloqueiam novas confirmações. Mesmo nome normalizado reutiliza presença existente; nome novo cria diarista sem conta. Homônimos ambíguos recebem 409 e devem usar sobrenome/apelido distintivo. Não cria conta, convite de acesso, pagamento ou valor esperado. Limites públicos por origem: detalhes 60/minuto, confirmação 20/minuto.
+
 ## Financeiro
 
 `GET …/pix` sempre retorna JSON `{settings: configuraçãoOuNull}`, inclusive quando não há chave. `PATCH …/pix` retorna a configuração criada/alterada diretamente.

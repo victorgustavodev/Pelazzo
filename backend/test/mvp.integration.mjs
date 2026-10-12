@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import assert from 'node:assert/strict';
+import { createHash, randomUUID } from 'node:crypto';
 import { before, after, test } from 'node:test';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../test-dist/src/app.module.js';
@@ -890,6 +891,299 @@ test('usuário e admin sorteiam com goleiros, sem alterar financeiro ou presenç
     4300,
   );
 });
+let attendanceGame, attendanceLink;
+test('apenas admin abre link compartilhado; token fica em hash e dados públicos são mínimos', async () => {
+  attendanceGame = await call(
+    'POST',
+    route('/matches'),
+    201,
+    {
+      title: 'Partida com check-in',
+      startsAt: new Date(Date.now() + 7 * 86400000).toISOString(),
+    },
+    owner,
+  );
+  const endpoint = route(`/matches/${attendanceGame.id}/attendance-link`);
+  await call('POST', endpoint, 401, {});
+  await call('POST', endpoint, 403, { location: 'Campo' }, user);
+  await call('GET', endpoint, 403, undefined, user);
+  await call('DELETE', endpoint, 403, undefined, user);
+  await call('POST', endpoint, 400, {}, owner);
+  attendanceLink = await call(
+    'POST',
+    endpoint,
+    201,
+    { location: 'Campo Central — Rua das Flores, 100' },
+    owner,
+  );
+  const stored = await prisma.matchAttendanceLink.findUnique({
+    where: { matchId: attendanceGame.id },
+  });
+  assert.equal(
+    stored.tokenHash,
+    createHash('sha256').update(attendanceLink.token).digest('hex'),
+  );
+  assert.equal(
+    new Date(attendanceLink.expiresAt).getTime(),
+    new Date(attendanceGame.startsAt).getTime() + 86400000,
+  );
+  const state = await call('GET', endpoint, 200, undefined, owner);
+  assert.equal(state.link.active, true);
+  assert.deepEqual(Object.keys(state.link).sort(), [
+    'active',
+    'expiresAt',
+    'id',
+  ]);
+  const details = await call('POST', '/attendance/details', 200, {
+    token: attendanceLink.token,
+  });
+  assert.deepEqual(Object.keys(details).sort(), [
+    'groupName',
+    'location',
+    'primaryColor',
+    'startsAt',
+    'timezone',
+    'title',
+  ]);
+  assert.equal(details.location, 'Campo Central — Rua das Flores, 100');
+  await call('POST', '/attendance/details', 400, { token: 'invalid' });
+  await call('POST', '/attendance/details', 404, { token: '0'.repeat(64) });
+  await call('GET', route('/participants'), 401);
+  await call('GET', route('/finance/summary'), 401);
+});
+
+test('mesmo link confirma várias pessoas pelo nome e reenvios concorrentes preservam caixa e modalidade', async () => {
+  const counts = await Promise.all([
+    prisma.user.count(),
+    prisma.membership.count(),
+    prisma.payment.count(),
+  ]);
+  const cash = await call(
+    'GET',
+    route('/finance/summary'),
+    200,
+    undefined,
+    owner,
+  );
+  const existing = await call(
+    'POST',
+    route(`/matches/${attendanceGame.id}/participants`),
+    201,
+    { participantId: ownerPlayer.id, expectedAmountCents: 5000 },
+    owner,
+  );
+  const receipt = await call('POST', '/attendance/confirm', 200, {
+    token: attendanceLink.token,
+    name: '  OWNER  ',
+  });
+  assert.equal(receipt.name, 'Owner');
+  const reused = await prisma.matchParticipant.findUnique({
+    where: { id: existing.id },
+  });
+  assert.equal(reused.expectedAmountCents, 5000);
+  assert.equal(reused.modalitySnapshot, 'MONTHLY');
+  assert.ok(reused.publicConfirmedAt);
+  const replies = await Promise.all([
+    call('POST', '/attendance/confirm', 200, {
+      token: attendanceLink.token,
+      name: 'Ana   Silva',
+    }),
+    call('POST', '/attendance/confirm', 200, {
+      token: attendanceLink.token,
+      name: ' ana silva ',
+    }),
+  ]);
+  assert.equal(replies[0].name, replies[1].name);
+  const players = await prisma.participant.findMany({
+    where: {
+      groupId: group.id,
+      name: { equals: 'Ana Silva', mode: 'insensitive' },
+    },
+  });
+  assert.equal(players.length, 1);
+  assert.equal(players[0].modality, 'DAILY');
+  assert.equal(players[0].userId, null);
+  const presences = await prisma.matchParticipant.findMany({
+    where: {
+      groupId: group.id,
+      matchId: attendanceGame.id,
+      participantId: players[0].id,
+    },
+  });
+  assert.equal(presences.length, 1);
+  assert.equal(presences[0].expectedAmountCents, null);
+  assert.ok(presences[0].publicConfirmedAt);
+  assert.deepEqual(
+    await Promise.all([
+      prisma.user.count(),
+      prisma.membership.count(),
+      prisma.payment.count(),
+    ]),
+    counts,
+  );
+  assert.deepEqual(
+    await call('GET', route('/finance/summary'), 200, undefined, owner),
+    cash,
+  );
+  const events = await prisma.auditEvent.findMany({
+    where: { groupId: group.id, action: 'ATTENDANCE_CONFIRMED_VIA_LINK' },
+  });
+  assert.equal(events.length, 2);
+  assert.ok(events.every((e) => e.actorUserId === null));
+  assert.ok(!JSON.stringify(events).includes('Ana'));
+  assert.ok(!JSON.stringify(events).includes(attendanceLink.token));
+  await call('POST', '/attendance/confirm', 400, {
+    token: attendanceLink.token,
+    name: '   ',
+  });
+  await call('POST', '/attendance/confirm', 400, {
+    token: attendanceLink.token,
+    name: 'Alteração',
+    groupId: otherGroup.id,
+  });
+});
+
+test('check-in respeita isolamento entre peladas, FKs compostas e homônimos', async () => {
+  const foreignGame = await call(
+    'POST',
+    `/groups/${otherGroup.id}/matches`,
+    201,
+    {
+      title: 'Outra partida',
+      startsAt: attendanceGame.startsAt,
+      location: 'Outro campo',
+    },
+    outsider,
+  );
+  const foreignLink = await call(
+    'POST',
+    `/groups/${otherGroup.id}/matches/${foreignGame.id}/attendance-link`,
+    201,
+    {},
+    outsider,
+  );
+  await call(
+    'GET',
+    `/groups/${otherGroup.id}/matches/${foreignGame.id}/attendance-link`,
+    403,
+    undefined,
+    owner,
+  );
+  await call(
+    'POST',
+    route(`/matches/${foreignGame.id}/attendance-link`),
+    404,
+    {},
+    owner,
+  );
+  for (const link of [attendanceLink, foreignLink])
+    await call('POST', '/attendance/confirm', 200, {
+      token: link.token,
+      name: 'Marcos',
+    });
+  const players = await prisma.participant.findMany({
+    where: { name: 'Marcos' },
+  });
+  assert.equal(players.length, 2);
+  assert.deepEqual(
+    new Set(players.map((p) => p.groupId)),
+    new Set([group.id, otherGroup.id]),
+  );
+  const unlinkedForeign = await call(
+    'POST',
+    `/groups/${otherGroup.id}/matches`,
+    201,
+    { title: 'FK cruzada', startsAt: attendanceGame.startsAt },
+    outsider,
+  );
+  await assert.rejects(
+    prisma.matchAttendanceLink.create({
+      data: {
+        id: randomUUID(),
+        groupId: group.id,
+        matchId: unlinkedForeign.id,
+        tokenHash: 'f'.repeat(64),
+        expiresAt: new Date(attendanceLink.expiresAt),
+        createdBy: owner.user.id,
+      },
+    }),
+    { code: 'P2003' },
+  );
+  for (let i = 0; i < 2; i++)
+    await call(
+      'POST',
+      route('/participants'),
+      201,
+      { name: 'Alex', modality: 'DAILY' },
+      owner,
+    );
+  await call('POST', '/attendance/confirm', 409, {
+    token: attendanceLink.token,
+    name: 'Alex',
+  });
+});
+
+test('renovação, revogação, expiração e encerramento impedem check-ins sem apagar presenças', async () => {
+  const endpoint = route(`/matches/${attendanceGame.id}/attendance-link`);
+  const before = await prisma.matchParticipant.count({
+    where: { matchId: attendanceGame.id },
+  });
+  const renewed = await call('POST', endpoint, 201, {}, owner);
+  assert.notEqual(renewed.token, attendanceLink.token);
+  await call('POST', '/attendance/confirm', 404, {
+    token: attendanceLink.token,
+    name: 'Link antigo',
+  });
+  await call('DELETE', endpoint, 204, undefined, owner);
+  await call('POST', '/attendance/confirm', 404, {
+    token: renewed.token,
+    name: 'Revogado',
+  });
+  const expired = await call('POST', endpoint, 201, {}, owner);
+  await prisma.matchAttendanceLink.update({
+    where: { matchId: attendanceGame.id },
+    data: { expiresAt: new Date(Date.now() - 1000) },
+  });
+  await call('POST', '/attendance/confirm', 404, {
+    token: expired.token,
+    name: 'Expirado',
+  });
+  const finished = await call('POST', endpoint, 201, {}, owner);
+  await call(
+    'PATCH',
+    route(`/matches/${attendanceGame.id}`),
+    200,
+    { status: 'FINISHED' },
+    owner,
+  );
+  await call('POST', '/attendance/confirm', 404, {
+    token: finished.token,
+    name: 'Encerrado',
+  });
+  await call('POST', endpoint, 400, {}, owner);
+  assert.equal(
+    (await call('GET', endpoint, 200, undefined, owner)).link.active,
+    false,
+  );
+  await call(
+    'PATCH',
+    route(`/matches/${attendanceGame.id}`),
+    200,
+    { status: 'CANCELED' },
+    owner,
+  );
+  await call('POST', '/attendance/confirm', 404, {
+    token: finished.token,
+    name: 'Cancelado',
+  });
+  assert.equal(
+    await prisma.matchParticipant.count({
+      where: { matchId: attendanceGame.id },
+    }),
+    before,
+  );
+});
+
 test('último administrador permanece protegido em alterações simultâneas', async () => {
   await call(
     'PATCH',
@@ -993,6 +1287,16 @@ test('Swagger documenta esquemas, status e autenticação Bearer', async () => {
     ),
   );
   assert.ok(spec.paths['/api/groups/{groupId}/team-draws'].post);
+  assert.ok(
+    spec.paths[
+      '/api/groups/{groupId}/matches/{matchId}/attendance-link'
+    ].post.security.some((s) => 'session' in s),
+  );
+  assert.ok(!spec.paths['/api/attendance/confirm'].post.security?.length);
+  assert.deepEqual(
+    Object.keys(spec.components.schemas.ConfirmAttendanceDto.properties).sort(),
+    ['name', 'token'],
+  );
   assert.ok(spec.components.schemas.DrawTeamsDto.properties.players.items.$ref);
   assert.equal((await fetch(`${base}/api/docs`)).status, 200);
 });

@@ -14,6 +14,9 @@ O nome inicial é Pelazzo. Cada pelada pode usar seu próprio nome, como “Pela
 - Sorteio acessível a usuários e administradores.
 - Entrada de quantidade de times, pessoas por time, presença de goleiros e nomes.
 - Exemplo: dois times de cinco pessoas usam dez participantes, distribuídos aleatoriamente.
+- O sorteio gera dez campos numerados nesse exemplo, ajustados automaticamente à multiplicação.
+- Link único de check-in por partida, compartilhado com toda a turma, com modal que pede somente nome e confirma campo/endereço. Não exige e-mail ou cadastro.
+- Logo Pelazzo fornecida pelo responsável nas telas e no ícone da aba.
 - Chave Pix configurada por administrador e envio de comprovante ao número do administrador.
 - Suporte a mais de um administrador.
 - Nome e cor do aplicativo configuráveis no painel administrativo.
@@ -31,6 +34,7 @@ Participante e conta de acesso são conceitos diferentes: o administrador pode c
 1. Administrador cria/configura a pelada, informa nome, tema, chave Pix e contato que receberá comprovantes.
 2. Administrador cadastra participantes como mensalistas ou diaristas e cria uma partida.
 3. Administrador associa participantes à partida e, se desejar, registra um valor esperado individual.
+   Também pode confirmar a partida, informar campo/endereço e compartilhar o link único. Cada pessoa abre o modal, informa apenas o nome e recebe a confirmação com o local, sem criar conta.
 4. Usuário consulta os dados de Pix, copia a chave e abre o contato para enviar o comprovante.
 5. Administrador confere o recebimento e registra valor, participante e referência da partida.
 6. Usuário ou administrador informa os parâmetros e nomes, executa o sorteio e visualiza os times.

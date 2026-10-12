@@ -35,6 +35,10 @@ const tabs = [
   ['audit', 'Histórico', History],
 ] as const;
 const actions: Record<string, string> = {
+  ATTENDANCE_LINK_CREATED: 'Link de presença gerado',
+  ATTENDANCE_LINK_REVOKED: 'Link de presença encerrado',
+  ATTENDANCE_CONFIRMED_VIA_LINK: 'Presença confirmada pelo link',
+  PARTICIPANT_CREATED_VIA_LINK: 'Jogador cadastrado pelo link',
   GROUP_CREATED: 'Pelada criada',
   GROUP_UPDATED: 'Personalização alterada',
   MEMBER_UPDATED: 'Membro alterado',
@@ -424,7 +428,10 @@ export function SettingsPage() {
                             <td>
                               {resource.data?.members.find(
                                 (m) => m.userId === item.actorUserId,
-                              )?.displayName ?? 'Membro'}
+                              )?.displayName ??
+                                (item.actorUserId === null
+                                  ? 'Pelo link da partida'
+                                  : 'Membro')}
                             </td>
                             <td>{date(item.createdAt, group.timezone)}</td>
                           </tr>

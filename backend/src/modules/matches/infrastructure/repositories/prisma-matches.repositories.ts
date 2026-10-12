@@ -38,6 +38,17 @@ export class PrismaMatchRepository implements MatchRepository {
 }
 export class PrismaParticipationRepository implements ParticipationRepository {
   constructor(private readonly tx: Prisma.TransactionClient) {}
+  findForParticipant(groupId: string, matchId: string, participantId: string) {
+    return this.tx.matchParticipant.findFirst({
+      where: { groupId, matchId, participantId },
+    });
+  }
+  confirmPublic(groupId: string, id: string, at: Date) {
+    return this.tx.matchParticipant.update({
+      where: { groupId, id },
+      data: { publicConfirmedAt: at },
+    });
+  }
   find(groupId: string, id: string) {
     return this.tx.matchParticipant.findFirst({ where: { groupId, id } });
   }
@@ -53,7 +64,9 @@ export class PrismaParticipationRepository implements ParticipationRepository {
     ]);
     return page(items, total, query);
   }
-  create(data: Omit<Participation, 'createdAt' | 'updatedAt'>) {
+  create(
+    data: Omit<Participation, 'createdAt' | 'updatedAt' | 'publicConfirmedAt'>,
+  ) {
     return this.tx.matchParticipant.create({ data });
   }
   update(groupId: string, id: string, expectedAmountCents: number | null) {

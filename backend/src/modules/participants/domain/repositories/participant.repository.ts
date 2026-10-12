@@ -1,6 +1,7 @@
 import type { Participant } from '../entities/participant.js';
 import type { Page, Paging } from '../../../../shared/domain/types.js';
 export interface ParticipantRepository {
+  findActiveByName(groupId: string, name: string): Promise<Participant[]>;
   find(groupId: string, id: string): Promise<Participant | null>;
   list(groupId: string, query: Paging): Promise<Page<Participant>>;
   create(

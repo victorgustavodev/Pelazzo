@@ -30,13 +30,15 @@ const SettingsPage = lazy(() =>
   import('./pages/settings-page').then((m) => ({ default: m.SettingsPage })),
 );
 import { AccountPage } from './pages/account-page';
+import { AttendancePage } from './pages/attendance-page';
+const publicEntry = window.location.pathname === '/attendance';
 export function App() {
   const [user, setUser] = useState<User | null>(null);
-  const [ready, setReady] = useState(!hasSession());
+  const [ready, setReady] = useState(publicEntry || !hasSession());
   const [error, setError] = useState('');
   useEffect(() => {
     let alive = true;
-    if (hasSession())
+    if (hasSession() && !publicEntry)
       api<User>('/auth/me')
         .then((value) => {
           if (alive) setUser(value);
@@ -78,6 +80,7 @@ export function App() {
     <AuthContext.Provider value={{ user, login, logout }}>
       <BrowserRouter>
         <Routes>
+          <Route path="/attendance" element={<AttendancePage />} />
           <Route
             path="/login"
             element={user ? <Navigate to="/" replace /> : <AuthPage />}

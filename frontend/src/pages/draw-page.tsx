@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { Shuffle, Plus, Trash2, Shield, RotateCcw } from 'lucide-react';
+import { Shuffle, Shield, RotateCcw, Users } from 'lucide-react';
 import { useGroup } from '../hooks/use-group';
-import { useResource } from '../hooks/use-resource';
-import { api, all, message } from '../services/api';
-import type { Participant, Draw, DrawPlayer } from '../types/api';
+import { api, message } from '../services/api';
+import type { Draw, DrawPlayer } from '../types/api';
 import {
   PageHeading,
   Field,
@@ -13,37 +12,57 @@ import {
   CopyButton,
   Loading,
 } from '../components/ui';
+const blank = (): DrawPlayer => ({
+  id: crypto.randomUUID(),
+  name: '',
+  goalkeeper: false,
+});
 export function DrawPage() {
   const { group } = useGroup();
   const [teamCount, setTeamCount] = useState(2);
   const [size, setSize] = useState(5);
   const [keepers, setKeepers] = useState(false);
-  const [players, setPlayers] = useState<DrawPlayer[]>([]);
-  const [bulk, setBulk] = useState('');
+  const [slots, setSlots] = useState<DrawPlayer[]>(() =>
+    Array.from({ length: 10 }, blank),
+  );
   const [result, setResult] = useState<Draw | null>(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const registered = useResource(
-    (s) => all<Participant>(`/groups/${group.id}/participants`, s),
-    [group.id],
-  );
-  const total = teamCount * size;
-  const goalkeeperCount = players.filter((p) => p.goalkeeper).length;
-  const ready =
+  const valid =
+    Number.isInteger(teamCount) &&
     teamCount >= 2 &&
     teamCount <= 50 &&
+    Number.isInteger(size) &&
     size >= 1 &&
     size <= 50 &&
-    total <= 500 &&
-    players.length === total &&
-    (!keepers || goalkeeperCount === teamCount) &&
-    players.every((p) => p.name.trim());
-  function edit(next: DrawPlayer[]) {
-    setPlayers(next);
+    teamCount * size <= 500;
+  const total = valid ? teamCount * size : 0;
+  const players = slots.slice(0, total);
+  const filled = players.filter((p) => p.name.trim()).length;
+  const goalkeeperCount = players.filter((p) => p.goalkeeper).length;
+  const ready =
+    valid && filled === total && (!keepers || goalkeeperCount === teamCount);
+  function clearResult() {
     setResult(null);
     setError('');
   }
+  function resize(teams: number, people: number) {
+    setTeamCount(teams);
+    setSize(people);
+    clearResult();
+    const count = teams * people;
+    if (Number.isInteger(count) && count > slots.length && count <= 500)
+      setSlots([
+        ...slots,
+        ...Array.from({ length: count - slots.length }, blank),
+      ]);
+  }
+  function edit(index: number, data: Partial<DrawPlayer>) {
+    setSlots(slots.map((p, i) => (i === index ? { ...p, ...data } : p)));
+    clearResult();
+  }
   async function draw() {
+    if (!ready || busy) return;
     setBusy(true);
     setError('');
     try {
@@ -56,6 +75,7 @@ export function DrawPage() {
             hasGoalkeepers: keepers,
             players: players.map((p) => ({
               ...p,
+              name: p.name.trim(),
               goalkeeper: keepers && p.goalkeeper,
             })),
           },
@@ -78,7 +98,7 @@ export function DrawPage() {
     <>
       <PageHeading
         title="Deixa com a sorte"
-        description="Você escolhe a turma. A gente embaralha os times."
+        description="Escolha o tamanho dos times e preencha um nome em cada vaga."
       />
       <div className="draw-layout">
         <section className="card draw-config">
@@ -91,10 +111,7 @@ export function DrawPage() {
                 max={50}
                 value={teamCount}
                 disabled={busy}
-                onChange={(e) => {
-                  setTeamCount(Number(e.target.value));
-                  setResult(null);
-                }}
+                onChange={(e) => resize(Number(e.target.value), size)}
               />
             </Field>
             <Field label="Pessoas por time">
@@ -104,10 +121,7 @@ export function DrawPage() {
                 max={50}
                 value={size}
                 disabled={busy}
-                onChange={(e) => {
-                  setSize(Number(e.target.value));
-                  setResult(null);
-                }}
+                onChange={(e) => resize(teamCount, Number(e.target.value))}
               />
             </Field>
           </div>
@@ -118,7 +132,7 @@ export function DrawPage() {
               disabled={busy}
               onChange={(e) => {
                 setKeepers(e.target.checked);
-                setResult(null);
+                clearResult();
               }}
             />
             <span>
@@ -126,116 +140,55 @@ export function DrawPage() {
               <small>O goleiro conta no tamanho do time.</small>
             </span>
           </label>
-          <div className="draw-count">
-            <strong>{Number.isFinite(total) ? total : '—'}</strong>
-            <span>pessoas para este jogo</span>
-            <Badge tone={players.length === total ? 'green' : 'neutral'}>
-              {players.length} adicionadas
-            </Badge>
+          <div className="draw-equation" aria-live="polite">
+            <Users size={22} />
+            <div>
+              <strong>
+                {valid
+                  ? `${teamCount} × ${size} = ${total}`
+                  : 'Ajuste a configuração'}
+              </strong>
+              <span>
+                {valid
+                  ? `${teamCount} times de ${size} pessoas · ${total} campos para nomes`
+                  : 'Até 50 times, 50 pessoas por time e 500 jogadores.'}
+              </span>
+            </div>
           </div>
-          <h2>2. Quem vai jogar?</h2>
-          <Field
-            label="Nomes, um por linha"
-            hint="Para homônimos, use apelidos que diferenciem cada pessoa."
-          >
-            <textarea
-              rows={5}
-              value={bulk}
-              disabled={busy}
-              onChange={(e) => setBulk(e.target.value)}
-              placeholder={'João\nPedro\nLucas'}
-              maxLength={20000}
-            />
-          </Field>
-          <button
-            className="button secondary full"
-            disabled={!bulk.trim() || busy}
-            onClick={() => {
-              edit([
-                ...players,
-                ...bulk
-                  .split('\n')
-                  .map((name) => name.trim())
-                  .filter(Boolean)
-                  .map((name) => ({
-                    id: crypto.randomUUID(),
-                    name,
-                    goalkeeper: false,
-                  })),
-              ]);
-              setBulk('');
-            }}
-          >
-            <Plus size={17} /> Adicionar nomes
-          </button>
-          <Field label="Ou escolher da turma">
-            <select
-              defaultValue=""
-              onChange={(e) => {
-                const player = registered.data?.find(
-                  (p) => p.id === e.target.value,
-                );
-                if (player)
-                  edit([
-                    ...players,
-                    { id: player.id, name: player.name, goalkeeper: false },
-                  ]);
-                e.target.value = '';
-              }}
-            >
-              <option value="">Selecionar jogador cadastrado</option>
-              {registered.data
-                ?.filter((p) => p.active && !players.some((v) => v.id === p.id))
-                .map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-            </select>
-          </Field>
-          {registered.error && (
-            <ErrorBox error={registered.error} retry={registered.reload} />
-          )}
           <Notice>
-            {keepers
-              ? `Identifique exatamente ${teamCount} goleiros na lista.`
-              : 'Todos jogam na linha neste sorteio.'}{' '}
-            O sorteio é aleatório e pode repetir uma combinação anterior.
+            Preencha cada vaga com um nome ou apelido. Para homônimos, use uma
+            identificação que diferencie cada pessoa.
+            {keepers && ` Marque exatamente ${teamCount} goleiros.`}
           </Notice>
+          <p className="muted fine">
+            O sorteio é aleatório e pode repetir uma combinação anterior.
+            Reduzir e depois aumentar as vagas preserva os nomes já digitados.
+          </p>
         </section>
         <section className="card draw-list">
           <div className="section-heading">
-            <h2>Escalação do sorteio</h2>
-            {players.length > 0 && (
-              <button
-                className="button secondary small"
-                disabled={busy}
-                onClick={() => edit([])}
-              >
-                Limpar
-              </button>
-            )}
+            <h2>2. Quem vai jogar?</h2>
+            <Badge tone={ready ? 'green' : 'neutral'}>
+              {filled}/{total} nomes
+            </Badge>
           </div>
-          {players.length ? (
-            <ol className="player-inputs">
+          {valid ? (
+            <ol className="player-inputs fixed-slots">
               {players.map((p, index) => (
-                <li key={p.id}>
+                <li key={p.id} className="py-2">
                   <span className="player-number">
                     {String(index + 1).padStart(2, '0')}
                   </span>
-                  <input
-                    aria-label={`Nome do jogador ${index + 1}`}
-                    maxLength={120}
-                    value={p.name}
-                    onChange={(e) =>
-                      edit(
-                        players.map((v) =>
-                          v.id === p.id ? { ...v, name: e.target.value } : v,
-                        ),
-                      )
-                    }
-                    disabled={busy}
-                  />
+                  <div className="draw-name-slot">
+                    <input
+                      aria-label={`Nome do jogador ${index + 1}`}
+                      maxLength={120}
+                      placeholder={`Nome do jogador ${index + 1}`}
+                      value={p.name}
+                      disabled={busy}
+                      onChange={(e) => edit(index, { name: e.target.value })}
+                    />
+                  </div>
                   {keepers && (
                     <label
                       className={`keeper-toggle ${p.goalkeeper ? 'selected' : ''}`}
@@ -243,49 +196,30 @@ export function DrawPage() {
                     >
                       <input
                         type="checkbox"
-                        aria-label={`${p.name} é goleiro`}
+                        aria-label={`Jogador ${index + 1} é goleiro`}
                         checked={p.goalkeeper}
                         disabled={busy}
                         onChange={(e) =>
-                          edit(
-                            players.map((v) =>
-                              v.id === p.id
-                                ? { ...v, goalkeeper: e.target.checked }
-                                : v,
-                            ),
-                          )
+                          edit(index, { goalkeeper: e.target.checked })
                         }
                       />
                       <Shield size={17} />
                     </label>
                   )}
-                  <button
-                    className="icon-button"
-                    aria-label={`Remover ${p.name}`}
-                    disabled={busy}
-                    onClick={() => edit(players.filter((v) => v.id !== p.id))}
-                  >
-                    <Trash2 size={16} />
-                  </button>
                 </li>
               ))}
             </ol>
           ) : (
-            <div className="draw-empty">
-              <Shuffle size={48} />
-              <h3>A turma ainda está chegando</h3>
-              <p className="muted">Adicione os nomes ao lado para começar.</p>
-            </div>
+            <ErrorBox error="Informe quantidades inteiras válidas para criar os campos." />
           )}
           <div className="draw-bottom">
             <p className="muted" aria-live="polite">
-              {players.length < total
-                ? `Faltam ${total - players.length} pessoas.`
-                : players.length > total
-                  ? `Remova ${players.length - total} pessoas.`
-                  : 'Quantidade de jogadores completa.'}
+              {valid
+                ? filled < total
+                  ? `Faltam ${total - filled} nomes.`
+                  : 'Todas as vagas estão preenchidas.'
+                : 'Configuração inválida.'}
               {keepers && ` ${goalkeeperCount} de ${teamCount} goleiros.`}
-              {total > 500 && ' Limite de 500 jogadores.'}
             </p>
             {error && <ErrorBox error={error} />}
             <button
@@ -319,8 +253,8 @@ export function DrawPage() {
               <CopyButton value={share} label="Copiar times" />
               <button
                 className="button secondary small"
-                onClick={draw}
                 disabled={busy}
+                onClick={draw}
               >
                 <RotateCcw size={16} /> Novo sorteio
               </button>

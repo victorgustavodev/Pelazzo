@@ -43,6 +43,7 @@ export interface Match {
   status: 'SCHEDULED' | 'FINISHED' | 'CANCELED';
 }
 export interface Participation {
+  publicConfirmedAt: string | null;
   id: string;
   matchId: string;
   participantId: string;
@@ -103,11 +104,26 @@ export interface Invitation {
 }
 export interface Audit {
   id: string;
-  actorUserId: string;
+  actorUserId: string | null;
   action: string;
   entityType: string;
   entityId: string;
   createdAt: string;
+}
+export interface PublicMatch {
+  groupName: string;
+  primaryColor: string;
+  timezone: string;
+  title: string;
+  startsAt: string;
+  location: string;
+}
+export interface AttendanceReceipt {
+  name: string;
+  match: PublicMatch;
+}
+export interface AttendanceLinkState {
+  link: { id: string; expiresAt: string; active: boolean } | null;
 }
 export interface DrawPlayer {
   id: string;

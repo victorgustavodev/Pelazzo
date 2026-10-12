@@ -18,6 +18,7 @@ import type {
   Participation,
   Cash,
   Settlement,
+  AttendanceLinkState,
 } from '../types/api';
 import {
   PageHeading,
@@ -41,6 +42,7 @@ import {
   moneyInput,
   parseMoney,
 } from '../utils/format';
+import { AttendanceLinkPanel } from '../components/attendance-link-panel';
 function MatchForm({
   match,
   close,
@@ -190,7 +192,7 @@ export function MatchesPage() {
     <>
       <PageHeading
         title="Toda semana, um novo jogo"
-        description={`Agenda e caixa de cada encontro · ${group.timezone}`}
+        description={`Organize `}
         action={
           admin && (
             <button
@@ -294,13 +296,20 @@ export function MatchPage() {
   const base = `/groups/${group.id}`;
   const resource = useResource(
     async (s) => {
-      const [match, attendance, players, cash] = await Promise.all([
-        api<Match>(`${base}/matches/${matchId}`, { signal: s }),
-        all<Participation>(`${base}/matches/${matchId}/participants`, s),
-        all<Participant>(`${base}/participants`, s),
-        api<Cash>(`${base}/matches/${matchId}/cash`, { signal: s }),
-      ]);
-      return { match, attendance, players, cash };
+      const [match, attendance, players, cash, attendanceLink] =
+        await Promise.all([
+          api<Match>(`${base}/matches/${matchId}`, { signal: s }),
+          all<Participation>(`${base}/matches/${matchId}/participants`, s),
+          all<Participant>(`${base}/participants`, s),
+          api<Cash>(`${base}/matches/${matchId}/cash`, { signal: s }),
+          admin
+            ? api<AttendanceLinkState>(
+                `${base}/matches/${matchId}/attendance-link`,
+                { signal: s },
+              )
+            : Promise.resolve({ link: null }),
+        ]);
+      return { match, attendance, players, cash, attendanceLink };
     },
     [group.id, matchId, admin, user.id, revision],
   );
@@ -352,6 +361,15 @@ export function MatchPage() {
         </Notice>
       )}
       <CashCards cash={cash} />
+      {admin && (
+        <AttendanceLinkPanel
+          groupId={group.id}
+          match={match}
+          state={resource.data.attendanceLink}
+          timezone={group.timezone}
+          refresh={resource.reload}
+        />
+      )}
       <section className="card table-card">
         <div className="section-heading padded">
           <h2>
@@ -384,6 +402,11 @@ export function MatchPage() {
                     <tr key={a.id}>
                       <td>
                         <strong>{p?.name ?? 'Jogador'}</strong>
+                        {a.publicConfirmedAt && (
+                          <small>
+                            <Badge tone="green">Confirmou pelo link</Badge>
+                          </small>
+                        )}
                       </td>
                       <td>
                         <Badge>{modality(a.modalitySnapshot)}</Badge>

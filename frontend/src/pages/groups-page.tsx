@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowUpRight, Plus, Users, Ticket, LogOut } from 'lucide-react';
 import { useAuth } from '../hooks/use-auth';
+import { Brand } from '../components/brand';
 import { useResource } from '../hooks/use-resource';
 import { api, all, message } from '../services/api';
 import type { Group, Member } from '../types/api';
@@ -25,7 +26,7 @@ export function GroupsPage() {
     <div className="groups-shell">
       <header className="topbar">
         <Link className="brand" to="/">
-          P<span>•</span> Pelazzo
+          <Brand />
         </Link>
         <div className="row">
           <Link className="button secondary small" to="/account">

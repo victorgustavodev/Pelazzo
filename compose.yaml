@@ -96,6 +96,7 @@ services:
     volumes:
       - ./frontend/src:/app/frontend/src:ro
       - ./frontend/index.html:/app/frontend/index.html:ro
+      - ./frontend/public:/app/frontend/public:ro
       - ./frontend/vite.config.ts:/app/frontend/vite.config.ts:ro
     depends_on:
       backend:

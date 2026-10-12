@@ -17,6 +17,7 @@ export interface Participation {
   participantId: string;
   modalitySnapshot: Modality;
   expectedAmountCents: number | null;
+  publicConfirmedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

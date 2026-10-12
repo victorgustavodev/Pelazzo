@@ -10,6 +10,7 @@ import {
   PrismaAuditRepository,
 } from '../../modules/groups/infrastructure/repositories/prisma-groups.repositories.js';
 import { PrismaParticipantRepository } from '../../modules/participants/infrastructure/repositories/prisma-participant.repository.js';
+import { PrismaAttendanceLinkRepository } from '../../modules/matches/infrastructure/repositories/prisma-attendance.repository.js';
 import {
   PrismaMatchRepository,
   PrismaParticipationRepository,
@@ -35,6 +36,7 @@ export class PrismaUnitOfWork implements UnitOfWork {
             participants: new PrismaParticipantRepository(tx),
             matches: new PrismaMatchRepository(tx),
             participations: new PrismaParticipationRepository(tx),
+            attendanceLinks: new PrismaAttendanceLinkRepository(tx),
             payments: new PrismaPaymentRepository(tx),
             expenses: new PrismaExpenseRepository(tx),
           }),

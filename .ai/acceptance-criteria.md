@@ -11,6 +11,17 @@
 - Remover ou rebaixar o último administrador é bloqueado, inclusive em requisições concorrentes.
 - Um membro da pelada A não acessa informações da pelada B ao trocar identificadores.
 
+## Check-in compartilhado
+
+- Admin confirma partida agendada, informa campo/endereço e obtém um link para todos. USER e visitantes não geram, consultam estado administrativo ou revogam links.
+- Abrir o link sem sessão mostra um modal com somente nome, sem e-mail, senha ou cadastro. Após envio, exibe “Presença confirmada!” e “te aguardo em:” com campo/endereço.
+- Várias pessoas usam o mesmo link. Reenvios do mesmo nome normalizado, inclusive concorrentes, produzem uma presença por pessoa/partida.
+- Participante ativo existente é reutilizado; modalidade histórica, conta vinculada, valores esperados e caixa permanecem intactos. Nome novo cria diarista sem conta ou membership.
+- Homônimos ambíguos recebem mensagem pedindo identificação distintiva. Mesmo nome em outra pelada não reutiliza o participante de fora.
+- Token não aparece nas consultas nem fica em texto puro no banco. Dados públicos não contêm lista de pessoas, Pix, telefone, contas ou financeiro.
+- Renovar invalida o link anterior. Link revogado/expirado ou partida cancelada/finalizada rejeita novas confirmações e preserva presenças anteriores.
+- Swagger distingue endpoints públicos de operações administrativas com Bearer.
+
 ## Financeiro
 
 - Sem valor esperado, registrar R$ 27,50 mostra o valor recebido sem inventar saldo devedor.
@@ -25,6 +36,7 @@
 ## Sorteio
 
 - Dois times de cinco pessoas, sem goleiros, com dez entradas produzem dois grupos de cinco, sem omissão ou repetição de entrada.
+- Antes do sorteio, dois times de cinco criam exatamente dez campos de nome numerados e mostram `2 × 5 = 10`; mudar para dois times de dois cria quatro campos. Reduzir e restaurar a quantidade preserva nomes.
 - Dois times de cinco, com dois goleiros e oito jogadores de linha, produzem dois grupos de cinco com exatamente um goleiro em cada.
 - Nove ou onze entradas para dois times de cinco bloqueiam o sorteio com mensagem clara.
 - Goleiros em número diferente da quantidade de times bloqueiam o sorteio.
@@ -39,6 +51,7 @@
 - Abrir o contato não cria nem confirma um pagamento.
 - Trocar nome e cor atualiza a interface da pelada e preserva legibilidade.
 - Configuração de uma pelada não altera tema ou Pix de outra.
+- Logo original Pelazzo aparece na autenticação, navegação, seleção de peladas, conta, rodapé e check-in público, além do ícone da aba. Deve continuar legível em fundo claro/escuro e celular.
 
 ## Interface e contrato
 

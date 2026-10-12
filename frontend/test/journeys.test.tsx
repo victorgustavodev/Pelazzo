@@ -1,6 +1,14 @@
 import { beforeEach, expect, test, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { DrawPage } from '../src/pages/draw-page';
+import { AttendancePage } from '../src/pages/attendance-page';
 import { FinancePage } from '../src/pages/finance-page';
 import { SettingsPage } from '../src/pages/settings-page';
 import { setToken } from '../src/services/api';
@@ -60,15 +68,23 @@ beforeEach(() => {
 });
 test('sorteio exige quantidade exata e envia o contrato de goleiros da API', async () => {
   render(<DrawPage />);
-  await screen.findByText('Selecionar jogador cadastrado');
+  await screen.findByLabelText('Nome do jogador 1');
+  expect(
+    screen.getAllByRole('textbox', { name: /Nome do jogador/ }),
+  ).toHaveLength(10);
+  expect(screen.getByText('2 × 5 = 10')).toBeTruthy();
   fireEvent.change(screen.getByLabelText('Pessoas por time'), {
     target: { value: '2' },
   });
   fireEvent.click(screen.getByLabelText(/Um goleiro por time/));
-  fireEvent.change(screen.getByLabelText('Nomes, um por linha'), {
-    target: { value: 'João\nPedro\nLucas\nJosé' },
-  });
-  fireEvent.click(screen.getByRole('button', { name: 'Adicionar nomes' }));
+  expect(
+    screen.getAllByRole('textbox', { name: /Nome do jogador/ }),
+  ).toHaveLength(4);
+  ['João', 'Pedro', 'Lucas', 'José'].forEach((name, index) =>
+    fireEvent.change(screen.getByLabelText(`Nome do jogador ${index + 1}`), {
+      target: { value: name },
+    }),
+  );
   expect(
     (
       screen.getByRole('button', {
@@ -76,8 +92,8 @@ test('sorteio exige quantidade exata e envia o contrato de goleiros da API', asy
       }) as HTMLButtonElement
     ).disabled,
   ).toBe(true);
-  fireEvent.click(screen.getByLabelText('João é goleiro'));
-  fireEvent.click(screen.getByLabelText('José é goleiro'));
+  fireEvent.click(screen.getByLabelText('Jogador 1 é goleiro'));
+  fireEvent.click(screen.getByLabelText('Jogador 4 é goleiro'));
   fetchMock.mockImplementationOnce(async (_url, options) => {
     const input = JSON.parse(String(options?.body));
     return Response.json({
@@ -96,7 +112,106 @@ test('sorteio exige quantidade exata e envia o contrato de goleiros da API', asy
     teamCount: 2,
     playersPerTeam: 2,
     hasGoalkeepers: true,
+    players: [
+      { name: 'João', goalkeeper: true },
+      { name: 'Pedro', goalkeeper: false },
+      { name: 'Lucas', goalkeeper: false },
+      { name: 'José', goalkeeper: true },
+    ],
   });
+});
+
+test('alterar vagas preserva nomes e impede sorteio com campos vazios ou configuração excessiva', async () => {
+  render(<DrawPage />);
+  await screen.findByLabelText('Nome do jogador 1');
+  fireEvent.change(screen.getByLabelText('Nome do jogador 10'), {
+    target: { value: 'Último jogador' },
+  });
+  fireEvent.change(screen.getByLabelText('Pessoas por time'), {
+    target: { value: '2' },
+  });
+  expect(screen.queryByLabelText('Nome do jogador 10')).toBeNull();
+  fireEvent.change(screen.getByLabelText('Pessoas por time'), {
+    target: { value: '5' },
+  });
+  expect(
+    (screen.getByLabelText('Nome do jogador 10') as HTMLInputElement).value,
+  ).toBe('Último jogador');
+  expect(
+    (
+      screen.getByRole('button', {
+        name: 'Sortear os times',
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+  fireEvent.change(screen.getByLabelText('Quantidade de times'), {
+    target: { value: '50' },
+  });
+  fireEvent.change(screen.getByLabelText('Pessoas por time'), {
+    target: { value: '50' },
+  });
+  expect(
+    screen.queryAllByRole('textbox', { name: /Nome do jogador/ }),
+  ).toHaveLength(0);
+  expect(screen.getByRole('alert')).toBeTruthy();
+  expect(
+    fetchMock.mock.calls.some(([url]) => String(url).endsWith('/team-draws')),
+  ).toBe(false);
+});
+
+test('link compartilhado abre modal, pede só nome e confirma local sem conta', async () => {
+  setToken(null);
+  const token = 'b'.repeat(64);
+  const game = {
+    groupName: 'Pelada da turma',
+    title: 'Sábado de bola',
+    location: 'Campo Central — Rua das Flores, 100',
+    startsAt: '2026-11-01T19:00:00Z',
+    timezone: 'America/Sao_Paulo',
+    primaryColor: '#15803d',
+  };
+  fetchMock.mockImplementation(async (url) =>
+    Response.json(
+      String(url).endsWith('/attendance/confirm')
+        ? { name: 'João', match: game }
+        : game,
+    ),
+  );
+  render(
+    <MemoryRouter initialEntries={[`/attendance#${token}`]}>
+      <AttendancePage />
+    </MemoryRouter>,
+  );
+  const dialog = await screen.findByRole('dialog');
+  expect(within(dialog).getAllByRole('textbox')).toHaveLength(1);
+  expect(screen.queryByLabelText(/E-mail/)).toBeNull();
+  expect(screen.queryByLabelText(/Senha/)).toBeNull();
+  fireEvent.change(within(dialog).getByLabelText('Seu nome'), {
+    target: { value: 'João' },
+  });
+  fireEvent.click(
+    within(dialog).getByRole('button', { name: 'Confirmar presença' }),
+  );
+  await within(dialog).findByText('Presença confirmada!');
+  expect(within(dialog).getByText(game.location)).toBeTruthy();
+  expect(within(dialog).getByText('João, te aguardo em:')).toBeTruthy();
+  const options = fetchMock.mock.calls.find(([url]) =>
+    String(url).endsWith('/attendance/confirm'),
+  )?.[1];
+  expect(JSON.parse(String(options?.body))).toEqual({ token, name: 'João' });
+  expect(new Headers(options?.headers).has('authorization')).toBe(false);
+});
+
+test('link inválido não abre formulário nem consulta dados da partida', async () => {
+  render(
+    <MemoryRouter initialEntries={['/attendance#invalid']}>
+      <AttendancePage />
+    </MemoryRouter>,
+  );
+  await screen.findByRole('alert');
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByLabelText('Seu nome')).toBeNull();
+  expect(fetchMock).not.toHaveBeenCalled();
 });
 test('recebimento mensal usa centavos e mantém idempotência após falha de conexão', async () => {
   let fail = true;

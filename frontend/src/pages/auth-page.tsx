@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowRight, ShieldCheck, Shuffle, Wallet } from 'lucide-react';
 import { useAuth } from '../hooks/use-auth';
+import { Brand } from '../components/brand';
 import { api } from '../services/api';
 import type { Grant } from '../types/api';
 import { MutationForm, Field } from '../components/ui';
@@ -12,7 +13,7 @@ export function AuthPage() {
     <div className="auth-page">
       <section className="auth-story">
         <a className="brand" href="/">
-          P<span>•</span> Pelazzo
+          <Brand />
         </a>
         <div className="auth-copy">
           <p className="eyebrow">BORA PRA PELADA</p>

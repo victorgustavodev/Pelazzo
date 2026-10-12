@@ -76,44 +76,46 @@ model User {
 }
 
 model Group {
-  id             String             @id @default(uuid()) @db.Uuid
-  name           String             @db.VarChar(80)
-  primaryColor   String             @default("#15803D") @map("primary_color") @db.VarChar(7)
-  timezone       String             @default("America/Sao_Paulo") @db.VarChar(100)
-  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  memberships    Membership[]
-  participants   Participant[]
-  matches        Match[]
-  participations MatchParticipant[]
-  payments       Payment[]
-  expenses       Expense[]
-  pixSettings    PixSettings?
-  auditEvents    AuditEvent[]
-  invitations    GroupInvitation[]
+  id              String                @id @default(uuid()) @db.Uuid
+  name            String                @db.VarChar(80)
+  primaryColor    String                @default("#15803D") @map("primary_color") @db.VarChar(7)
+  timezone        String                @default("America/Sao_Paulo") @db.VarChar(100)
+  createdAt       DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  memberships     Membership[]
+  participants    Participant[]
+  matches         Match[]
+  participations  MatchParticipant[]
+  payments        Payment[]
+  expenses        Expense[]
+  pixSettings     PixSettings?
+  auditEvents     AuditEvent[]
+  invitations     GroupInvitation[]
+  attendanceLinks MatchAttendanceLink[]
 
   @@map("groups")
 }
 
 model Membership {
-  id                  String            @id @default(uuid()) @db.Uuid
-  groupId             String            @map("group_id") @db.Uuid
-  userId              String            @map("user_id") @db.Uuid
-  role                MembershipRole    @default(USER)
-  active              Boolean           @default(true)
-  createdAt           DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  group               Group             @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  user                User              @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  id                  String                @id @default(uuid()) @db.Uuid
+  groupId             String                @map("group_id") @db.Uuid
+  userId              String                @map("user_id") @db.Uuid
+  role                MembershipRole        @default(USER)
+  active              Boolean               @default(true)
+  createdAt           DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime              @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  group               Group                 @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   participants        Participant[]
-  recordedPayments    Payment[]         @relation("PaymentRecorder")
-  voidedPayments      Payment[]         @relation("PaymentVoider")
-  recordedExpenses    Expense[]         @relation("ExpenseRecorder")
-  voidedExpenses      Expense[]         @relation("ExpenseVoider")
+  recordedPayments    Payment[]             @relation("PaymentRecorder")
+  voidedPayments      Payment[]             @relation("PaymentVoider")
+  recordedExpenses    Expense[]             @relation("ExpenseRecorder")
+  voidedExpenses      Expense[]             @relation("ExpenseVoider")
   pixSettings         PixSettings[]
   auditEvents         AuditEvent[]
-  invitationsCreated  GroupInvitation[] @relation("InvitationCreator")
-  invitationsAccepted GroupInvitation[] @relation("InvitationAcceptor")
+  invitationsCreated  GroupInvitation[]     @relation("InvitationCreator")
+  invitationsAccepted GroupInvitation[]     @relation("InvitationAcceptor")
+  attendanceLinks     MatchAttendanceLink[]
 
   @@unique([groupId, userId], map: "memberships_group_id_user_id_key")
   @@index([userId, active], map: "memberships_user_active_idx")
@@ -141,17 +143,18 @@ model Participant {
 }
 
 model Match {
-  id           String             @id @default(uuid()) @db.Uuid
-  groupId      String             @map("group_id") @db.Uuid
-  title        String             @db.VarChar(120)
-  startsAt     DateTime           @map("starts_at") @db.Timestamptz(6)
-  location     String?            @db.VarChar(255)
-  status       MatchStatus        @default(SCHEDULED)
-  createdAt    DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  group        Group              @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  participants MatchParticipant[]
-  expenses     Expense[]
+  id             String               @id @default(uuid()) @db.Uuid
+  groupId        String               @map("group_id") @db.Uuid
+  title          String               @db.VarChar(120)
+  startsAt       DateTime             @map("starts_at") @db.Timestamptz(6)
+  location       String?              @db.VarChar(255)
+  status         MatchStatus          @default(SCHEDULED)
+  createdAt      DateTime             @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime             @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  group          Group                @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  participants   MatchParticipant[]
+  expenses       Expense[]
+  attendanceLink MatchAttendanceLink?
 
   @@unique([groupId, id], map: "matches_group_id_id_key")
   @@index([groupId, startsAt], map: "matches_group_start_idx")
@@ -165,6 +168,7 @@ model MatchParticipant {
   participantId       String              @map("participant_id") @db.Uuid
   modalitySnapshot    ParticipantModality @map("modality_snapshot")
   expectedAmountCents Int?                @map("expected_amount_cents")
+  publicConfirmedAt   DateTime?           @map("public_confirmed_at") @db.Timestamptz(6)
   createdAt           DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt           DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   group               Group               @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
@@ -259,19 +263,37 @@ model PixSettings {
 }
 
 model AuditEvent {
-  id          String     @id @default(uuid()) @db.Uuid
-  groupId     String     @map("group_id") @db.Uuid
-  actorUserId String     @map("actor_user_id") @db.Uuid
-  action      String     @db.VarChar(100)
-  entityType  String     @map("entity_type") @db.VarChar(100)
-  entityId    String     @map("entity_id") @db.Uuid
-  metadata    Json       @default("{}") @db.JsonB
-  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
-  group       Group      @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  actor       Membership @relation(fields: [groupId, actorUserId], references: [groupId, userId], onDelete: Restrict, onUpdate: NoAction)
+  id          String      @id @default(uuid()) @db.Uuid
+  groupId     String      @map("group_id") @db.Uuid
+  actorUserId String?     @map("actor_user_id") @db.Uuid
+  action      String      @db.VarChar(100)
+  entityType  String      @map("entity_type") @db.VarChar(100)
+  entityId    String      @map("entity_id") @db.Uuid
+  metadata    Json        @default("{}") @db.JsonB
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  group       Group       @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  actor       Membership? @relation(fields: [groupId, actorUserId], references: [groupId, userId], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([groupId, createdAt], map: "audit_events_group_created_idx")
   @@map("audit_events")
+}
+
+model MatchAttendanceLink {
+  id        String     @id @default(uuid()) @db.Uuid
+  groupId   String     @map("group_id") @db.Uuid
+  matchId   String     @unique(map: "match_attendance_links_match_id_key") @map("match_id") @db.Uuid
+  tokenHash String     @unique(map: "match_attendance_links_token_hash_key") @map("token_hash") @db.VarChar(64)
+  expiresAt DateTime   @map("expires_at") @db.Timestamptz(6)
+  createdBy String     @map("created_by") @db.Uuid
+  revokedAt DateTime?  @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  group     Group      @relation(fields: [groupId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  match     Match      @relation(fields: [groupId, matchId], references: [groupId, id], onDelete: Restrict, onUpdate: NoAction)
+  creator   Membership @relation(fields: [groupId, createdBy], references: [groupId, userId], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([groupId, matchId], map: "match_attendance_links_group_match_key")
+  @@map("match_attendance_links")
 }
 
 model Session {

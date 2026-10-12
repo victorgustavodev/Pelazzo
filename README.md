@@ -22,6 +22,8 @@ O primeiro comando gera o segredo local sem exibi-lo, preservando configuraçõe
 
 Cadastre sua conta e crie a primeira pelada: você será seu primeiro administrador. No painel, crie convites por e-mail e compartilhe o código manualmente. Os convidados cadastram a conta com o mesmo e-mail e usam “Tenho um convite”. Não há conta padrão, senha pública ou dados fictícios cadastrados automaticamente.
 
+Para confirmar presença, abra a partida como admin e use “Confirmar partida e gerar link”, informando campo/endereço. Copie o link e compartilhe com toda a turma: cada pessoa informa só o nome, sem conta ou e-mail. O link vale até 24 horas após o horário da partida; gerar outro invalida o anterior. No desenvolvimento, a URL usa `localhost`: o uso fora desta máquina depende da publicação com uma URL acessível.
+
 O banco local usa `localhost:5432`, banco/usuário `pelazzo` e senha fictícia `local_dev_only`. As portas são limitadas a 127.0.0.1. O volume preserva os dados; `docker compose down` não apaga o banco. Não use `down -v` para uma parada normal.
 
 ```sh
@@ -38,11 +40,14 @@ Código tem recarga automática. Após alterar dependências ou Dockerfile, reco
 - Peladas isoladas, membros USER/ADMIN e proteção do último administrador, inclusive com operações concorrentes.
 - Participantes com vínculo opcional à conta, modalidade e desativação sem perda de histórico.
 - Agenda, presenças, valor esperado individual opcional e caixa de cada partida.
+- Admin confirma partida e gera um link único para toda a turma fazer check-in informando só o nome, sem e-mail, login ou cadastro. O modal confirma presença com campo/endereço; o link pode ser encerrado ou renovado.
 - Recebimentos parciais/múltiplos, despesas, anulações e correções com motivo e histórico preservado.
 - Caixa geral inclui recebimentos mensais por competência; caixa da partida inclui somente os seus lançamentos.
 - Usuários consultam seus próprios detalhes financeiros e totais agregados da turma.
 - Uma chave Pix ativa por pelada, favorecido, copiar chave e contato WhatsApp. O comprovante é anexado manualmente; o admin confere e registra o recebimento.
 - Sorteio aleatório para usuário e admin, quantidade exata de nomes e um goleiro por time quando habilitado. Goleiro conta no tamanho do time.
+- Campos de nome numerados criados automaticamente por `times × pessoas por time`: 2 × 5 gera 10 campos.
+- Logo Pelazzo original nas telas e no favicon; ativos em `frontend/public/brand` e geração do favicon por `scripts/generate-brand-assets.mjs`.
 - Nome, cor e fuso por pelada, com contraste de texto e interface responsiva.
 - Auditoria administrativa, validação de entrada, limites de requisição e Swagger com token Bearer.
 

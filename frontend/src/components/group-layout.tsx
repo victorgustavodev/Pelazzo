@@ -19,6 +19,7 @@ import { api, message } from '../services/api';
 import type { Group, Member, GroupContext } from '../types/api';
 import { Loading, ErrorBox, Badge } from './ui';
 import { themeText } from '../utils/format';
+import { Brand } from './brand';
 const links = [
   ['', 'Visão geral', LayoutDashboard],
   ['matches', 'Partidas', CalendarDays],
@@ -113,7 +114,7 @@ export function GroupLayout() {
       )}
       <aside className={`sidebar ${open ? 'is-open' : ''}`}>
         <Link className="brand" to="/">
-          P<span>•</span> Pelazzo
+          <Brand />
         </Link>
         <div className="sidebar-group">
           <span className="sidebar-dot" />
@@ -186,7 +187,7 @@ export function GroupLayout() {
           </Suspense>
         </main>
         <footer className="app-footer">
-          Jogar junto fica mais fácil. <span>Pelazzo</span>
+          Jogar junto fica mais fácil. <Brand />
         </footer>
       </div>
     </div>

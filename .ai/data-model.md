@@ -19,6 +19,11 @@ O detalhamento físico, índices, diagrama e limites de integridade estão em [d
 
 ## Invariantes relacionais
 
+- MatchAttendanceLink pertence ao módulo matches: id, groupId, matchId único, tokenHash único, expiresAt, createdBy, revokedAt, createdAt e updatedAt. FKs compostas garantem partida e administrador criador da mesma pelada. Regeneração atualiza a mesma linha e troca o hash.
+- MatchParticipant inclui `publicConfirmedAt` opcional para indicar confirmação pelo link. Mantém unicidade de participante por partida, modalidade histórica e valor esperado opcional.
+- AuditEvent permite `actorUserId` nulo exclusivamente para ações sem conta, como check-in público. Quando preenchido, a FK composta continua exigindo membro da mesma pelada.
+- Um índice parcial não único por pelada e nome normalizado de participante ativo atende ao check-in; homônimos continuam permitidos.
+
 - User possui e-mail normalizado único, nome e campos exigidos pelo provedor. AuthAccount guarda credenciais geridas pelo Better Auth, AuthSession guarda sessões revogáveis e AuthVerification é uma tabela de suporte da biblioteca (fluxos de e-mail fora do MVP).
 - GroupInvitation vincula e-mail convidado, papel e pelada; apenas hash do token é guardado. Possui expiração, autor, aceitação e revogação. Aceitação requer a conta do mesmo e-mail e convite válido, de uso único.
 - Payment/Expense possuem `replacesId` opcional único, FK da mesma pelada e proibição de auto-referência. Não editar valores existentes: correção anula o original e cria o substituto atomicamente.

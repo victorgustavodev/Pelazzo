@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/use-auth';
+import { Brand } from '../components/brand';
 import { api } from '../services/api';
 import { PageHeading, MutationForm, Field, Notice } from '../components/ui';
 export function AccountPage() {
@@ -10,7 +11,7 @@ export function AccountPage() {
     <div className="groups-shell">
       <header className="topbar">
         <Link className="brand" to="/">
-          P<span>•</span> Pelazzo
+          <Brand />
         </Link>
         <Link className="button secondary" to="/">
           Voltar às peladas

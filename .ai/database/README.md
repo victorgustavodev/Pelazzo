@@ -13,7 +13,7 @@ Um banco e um schema `public` são suficientes. Separar responsabilidade por mó
 | auth                        | users, auth_accounts, auth_sessions, auth_verifications | E-mail/senha e sessões geridas pelo Better Auth             |
 | groups                      | groups, memberships, pix_settings, group_invitations    | Peladas, administradores, convites, tema e destinatário Pix |
 | participants                | participants                                            | Cadastro e modalidade atual                                 |
-| matches                     | matches, match_participants                             | Agenda, presença e modalidade histórica                     |
+| matches                     | matches, match_participants, match_attendance_links     | Agenda, presença, modalidade histórica e link público       |
 | finance                     | payments, expenses                                      | Recebimentos, despesas e anulações                          |
 | infraestrutura de auditoria | audit_events                                            | Rastreabilidade das mutações                                |
 | team-draw                   | nenhuma no MVP                                          | Sorteio em memória sem modificar o financeiro               |
@@ -31,6 +31,8 @@ erDiagram
     USERS o|--o{ PARTICIPANTS : identifica
     GROUPS ||--o{ MATCHES : agenda
     MATCHES ||--o{ MATCH_PARTICIPANTS : recebe
+    MATCHES ||--o| MATCH_ATTENDANCE_LINKS : abre
+    MEMBERSHIPS ||--o{ MATCH_ATTENDANCE_LINKS : compartilha
     PARTICIPANTS ||--o{ MATCH_PARTICIPANTS : joga
     PARTICIPANTS ||--o{ PAYMENTS : paga
     MATCH_PARTICIPANTS o|--o{ PAYMENTS : referencia
@@ -40,7 +42,7 @@ erDiagram
     MEMBERSHIPS ||--o{ EXPENSES : registra
     MEMBERSHIPS ||--o| PIX_SETTINGS : recebe
     GROUPS ||--o{ AUDIT_EVENTS : audita
-    MEMBERSHIPS ||--o{ AUDIT_EVENTS : executa
+    MEMBERSHIPS o|--o{ AUDIT_EVENTS : executa
 ```
 
 Uma pelada é criada junto com seu primeiro administrador em transação. O diagrama representa essa regra de aplicação; o SQL sozinho não exige ao menos um administrador.
@@ -79,6 +81,7 @@ Application conhece uma porta de unidade de trabalho para operações que exigem
 3. **Registrar recebimento/despesa:** conferir administrador ativo, referências e valor; inserir lançamento e auditoria atomicamente. Restrição única impede repetição concorrente. Ao receber a mesma chave, comparar conteúdo e retornar o lançamento existente ou conflito.
 4. **Corrigir financeiro:** atualizar somente os campos de anulação com condição `status = CONFIRMED`; criar substituto com nova chave de idempotência e auditar na mesma transação. Preservar valor, referência e autor originais. Não permitir atualização genérica nem delete de lançamento.
 5. **Atualizar modalidade:** modificar participante; a modalidade copiada em `match_participants` permanece intacta.
+6. **Confirmar presença pelo link:** procurar hash, bloquear a pelada e revalidar hash/expiração/revogação/estado. Resolver nome normalizado apenas em participantes ativos dessa pelada, rejeitando homônimos ambíguos; criar diarista sem conta quando necessário. Reutilizar ou inserir presença única, marcar `public_confirmed_at` e auditar com autor nulo. Não alterar valores esperados ou lançamentos. Geração/revogação usa o mesmo bloqueio e exige ADMIN ativo.
 
 Não usar checks com consulta a outras tabelas para validar último administrador. Essa regra exige leitura consistente e controle de concorrência no caso de uso/repositório. A imutabilidade de lançamentos e auditoria também depende dos contratos de escrita; o blueprint não inclui triggers nem políticas de acesso por linha.
 
@@ -117,17 +120,18 @@ Os parâmetros são IDs autorizados e devem ser vinculados pela biblioteca, sem 
 
 PKs e constraints únicas já criam índices. Índices adicionais atendem às consultas previstas:
 
-| Índice                                                             | Uso                                      |
-| ------------------------------------------------------------------ | ---------------------------------------- |
-| memberships(user_id, active)                                       | Peladas acessíveis ao usuário            |
-| participants(group_id, user_id) WHERE active e user_id preenchido  | Unicidade do vínculo ativo               |
-| matches(group_id, starts_at)                                       | Agenda da pelada                         |
-| match_participants(group_id, participant_id)                       | Histórico de partidas de um participante |
-| payments(group_id, match_participant_id, status)                   | Total por participação e caixa           |
-| payments(group_id, participant_id, received_at)                    | Histórico financeiro individual          |
-| payments(group_id, competence, status) WHERE competence preenchida | Financeiro mensal                        |
-| expenses(group_id, match_id, status)                               | Despesas do caixa                        |
-| audit_events(group_id, created_at)                                 | Histórico administrativo                 |
+| Índice                                                             | Uso                                        |
+| ------------------------------------------------------------------ | ------------------------------------------ |
+| memberships(user_id, active)                                       | Peladas acessíveis ao usuário              |
+| participants(group_id, user_id) WHERE active e user_id preenchido  | Unicidade do vínculo ativo                 |
+| participants(group_id, nome normalizado) WHERE active              | Reutilizar nome no check-in, sem unicidade |
+| matches(group_id, starts_at)                                       | Agenda da pelada                           |
+| match_participants(group_id, participant_id)                       | Histórico de partidas de um participante   |
+| payments(group_id, match_participant_id, status)                   | Total por participação e caixa             |
+| payments(group_id, participant_id, received_at)                    | Histórico financeiro individual            |
+| payments(group_id, competence, status) WHERE competence preenchida | Financeiro mensal                          |
+| expenses(group_id, match_id, status)                               | Despesas do caixa                          |
+| audit_events(group_id, created_at)                                 | Histórico administrativo                   |
 
 Não indexar JSON de auditoria ou todas as colunas preventivamente. Reavaliar com planos e consultas reais quando a aplicação existir.
 
@@ -143,7 +147,8 @@ No ambiente Docker, o serviço `migrate` aplica as migrations versionadas automa
 - Configurar `DATABASE_URL` somente em ambiente e `.env.example` sem credenciais reais. Usar conexão exclusiva do servidor.
 - Autenticação definida: migration `20261011000200_auth_invitations_corrections` acrescenta e-mail único normalizado, campos de identidade, tabelas Better Auth e convites por hash. Convites referenciam membros da mesma pelada, possuem e-mail, papel, expiração, aceitação e revogação. Não persistir o token de convite em texto puro.
 - Payments/expenses recebem `replaces_id` único, com FK composta para a mesma pelada e check contra auto-referência. A correção exige original confirmado e anula/cria/audita na mesma transação. Esta migration é aditiva e mantém todos os checks e índices parciais originais.
-- `schema.sql` permanece o blueprint da migration inicial. Para todas as tabelas atuais, use `schema.prisma` e as duas migrations versionadas; não aplicar o blueprint sobre o banco migrado.
+- `20261012000100_public_attendance` adiciona `match_attendance_links` com hash único, uma linha por partida, expiração, revogação e FKs compostas para partida/criador. Acrescenta `public_confirmed_at` às presenças, permite auditoria anônima com ator nulo e indexa nomes ativos normalizados sem proibir homônimos. Migration aditiva, sem apagar dados.
+- `schema.sql` permanece o blueprint da migration inicial. Para todas as tabelas atuais, use `schema.prisma` e as três migrations versionadas; não aplicar o blueprint sobre o banco migrado.
 
 PostgreSQL documenta constraints compostas e índices únicos parciais em [Constraints](https://www.postgresql.org/docs/current/ddl-constraints.html). A necessidade de preservar recursos não representados no schema Prisma está descrita em [Database features](https://docs.prisma.io/docs/orm/v7/reference/database-features).
 
@@ -156,3 +161,5 @@ O chore adicionou testes automatizados da migration em PostgreSQL embarcado desc
 Em 11/10/2026, a migration inicial foi aplicada ao PostgreSQL 18.6 local em Docker. A inspeção confirmou dez tabelas de domínio com 91 colunas, além da tabela de controle `_prisma_migrations`. O readiness do backend e o acesso pelo proxy do frontend retornaram `status: ok`. Lint, tipos, 13 testes e builds também passaram em um container Linux temporário.
 
 Em 12/10/2026, as duas migrations foram aplicadas no banco principal preservando os dados. A inspeção confirmou 14 tabelas da aplicação, além de `_prisma_migrations`. Os testes HTTP completos usam PostgreSQL 18.6 em bancos temporários separados.
+
+Ainda em 12/10/2026, a terceira migration de check-in compartilhado foi aplicada de forma aditiva. O banco principal contém 15 tabelas da aplicação; as três migrations constam como concluídas. A integração HTTP valida reutilização de participantes, reenvio concorrente, isolamento, FKs compostas, revogação/renovação/expiração e preservação do caixa. Revisão visual usa dados fictícios em banco separado.

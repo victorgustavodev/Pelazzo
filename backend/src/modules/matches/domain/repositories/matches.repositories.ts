@@ -11,6 +11,12 @@ export interface MatchRepository {
   ): Promise<Match>;
 }
 export interface ParticipationRepository {
+  findForParticipant(
+    groupId: string,
+    matchId: string,
+    participantId: string,
+  ): Promise<Participation | null>;
+  confirmPublic(groupId: string, id: string, at: Date): Promise<Participation>;
   find(groupId: string, id: string): Promise<Participation | null>;
   list(
     groupId: string,
@@ -18,7 +24,7 @@ export interface ParticipationRepository {
     query: Paging,
   ): Promise<Page<Participation>>;
   create(
-    data: Omit<Participation, 'createdAt' | 'updatedAt'>,
+    data: Omit<Participation, 'createdAt' | 'updatedAt' | 'publicConfirmedAt'>,
   ): Promise<Participation>;
   update(
     groupId: string,

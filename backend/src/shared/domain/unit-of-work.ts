@@ -6,6 +6,7 @@ import type {
   AuditRepository,
 } from '../../modules/groups/domain/repositories/groups.repositories.js';
 import type { ParticipantRepository } from '../../modules/participants/domain/repositories/participant.repository.js';
+import type { AttendanceLinkRepository } from '../../modules/matches/domain/repositories/attendance.repository.js';
 import type {
   MatchRepository,
   ParticipationRepository,
@@ -23,6 +24,7 @@ export interface Repositories {
   participants: ParticipantRepository;
   matches: MatchRepository;
   participations: ParticipationRepository;
+  attendanceLinks: AttendanceLinkRepository;
   payments: PaymentRepository;
   expenses: ExpenseRepository;
 }
